@@ -13,4 +13,5 @@ data class BubbleUiState(
     val recordingState: RecordingState = RecordingState.IDLE,
     val interactionState: BubbleInteractionState = BubbleInteractionState.Collapsed,
     val shortcuts: List<ShortcutPreset> = emptyList(),
+    val statusMessage: String? = null,
 )
