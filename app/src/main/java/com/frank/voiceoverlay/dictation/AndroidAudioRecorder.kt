@@ -19,13 +19,23 @@ class AndroidAudioRecorder(
             suffix = ".m4a",
         ).toFile()
 
-        val recorder = createMediaRecorder().apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setOutputFile(file.absolutePath)
-            prepare()
-            start()
+        var recorder: MediaRecorder? = null
+        try {
+            recorder = createMediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFile(file.absolutePath)
+                prepare()
+                start()
+            }
+        } catch (error: Throwable) {
+            recorder?.let {
+                runCatching { it.reset() }
+                runCatching { it.release() }
+            }
+            file.delete()
+            throw error
         }
 
         outputFile = file
