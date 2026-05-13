@@ -1,6 +1,9 @@
 package com.frank.voiceoverlay.overlay
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -21,27 +24,38 @@ fun OverlayBubbleView(
     onBubbleTap: () -> Unit = {},
     onShortcutTap: (ShortcutPreset) -> Unit = {},
 ) {
-    Box(contentAlignment = Alignment.Center) {
-        if (uiState.interactionState == BubbleInteractionState.ShortcutsExpanded) {
-            RadialShortcutMenu(
-                presets = uiState.shortcuts,
-                onPresetClick = onShortcutTap,
-            )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(contentAlignment = Alignment.Center) {
+            if (uiState.interactionState == BubbleInteractionState.ShortcutsExpanded) {
+                RadialShortcutMenu(
+                    presets = uiState.shortcuts,
+                    onPresetClick = onShortcutTap,
+                )
+            }
+
+            Surface(
+                onClick = onBubbleTap,
+                modifier = Modifier
+                    .size(64.dp)
+                    .semantics { contentDescription = "Voice input bubble" },
+                shape = CircleShape,
+                color = bubbleColor(uiState.recordingState),
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(text = bubbleGlyph(uiState.recordingState))
+                }
+            }
         }
 
-        Surface(
-            onClick = onBubbleTap,
-            modifier = Modifier
-                .size(64.dp)
-                .semantics { contentDescription = "Voice input bubble" },
-            shape = CircleShape,
-            color = bubbleColor(uiState.recordingState),
-            tonalElevation = 6.dp,
-            shadowElevation = 8.dp,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(text = bubbleGlyph(uiState.recordingState))
-            }
+        uiState.statusMessage?.let { message ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

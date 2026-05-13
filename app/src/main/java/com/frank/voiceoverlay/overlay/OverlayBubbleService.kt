@@ -19,16 +19,11 @@ import com.frank.voiceoverlay.dictation.AndroidAudioRecorder
 import com.frank.voiceoverlay.dictation.DictationCoordinator
 import com.frank.voiceoverlay.dictation.OpenAiCleanupClient
 import com.frank.voiceoverlay.dictation.OpenAiTranscriptionClient
-import com.frank.voiceoverlay.dictation.RecordingState
 import com.frank.voiceoverlay.insertion.OverlayAccessibilityService
 import com.frank.voiceoverlay.settings.SettingsStore
-import com.frank.voiceoverlay.shortcuts.ShortcutPreset
-import com.frank.voiceoverlay.shortcuts.ShortcutPresetRepository
 import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class OverlayBubbleService : LifecycleService() {
@@ -42,13 +37,18 @@ class OverlayBubbleService : LifecycleService() {
             },
         )
     }
-    private val shortcutRepository by lazy { ShortcutPresetRepository(settingsStore) }
-    private val uiState = MutableStateFlow(BubbleUiState(shortcuts = ShortcutPreset.defaultPresets()))
-    private val gestureInterpreter = BubbleGestureInterpreter(DOUBLE_TAP_WINDOW_MILLIS)
     private val coordinator by lazy(::createCoordinator)
+    private val controller by lazy {
+        OverlayBubbleController(
+            recordingState = coordinator.state,
+            refreshSettingsSnapshot = settingsStore::readOnce,
+            startRecording = coordinator::startRecording,
+            stopRecording = coordinator::stopRecording,
+            resetRecording = coordinator::reset,
+            insertShortcutText = ::insertIntoFocusedField,
+        )
+    }
 
-    @Volatile
-    private var apiKeySnapshot: String = ""
     private var pendingTapResolutionJob: Job? = null
 
     override fun onCreate() {
@@ -58,20 +58,19 @@ class OverlayBubbleService : LifecycleService() {
         composeView = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
-                val currentState by uiState.collectAsState()
+                val currentState by controller.uiState.collectAsState()
                 MaterialTheme {
                     OverlayBubbleView(
                         uiState = currentState,
-                        onBubbleTap = ::onBubbleTap,
-                        onShortcutTap = ::onShortcutTap,
+                        onBubbleTap = ::handleBubbleTap,
+                        onShortcutTap = ::handleShortcutTap,
                     )
                 }
             }
         }
 
         windowManager.addView(composeView, overlayLayoutParams())
-        observeCoordinatorState()
-        loadSettingsSnapshot()
+        controller.bind(lifecycleScope)
     }
 
     override fun onDestroy() {
@@ -89,94 +88,40 @@ class OverlayBubbleService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
-    private fun observeCoordinatorState() {
+    private fun handleBubbleTap() {
         lifecycleScope.launch {
-            coordinator.state.collect { recordingState ->
-                uiState.update { state ->
-                    state.copy(recordingState = recordingState)
-                }
-            }
+            applyBubbleCommand(controller.onBubbleTap(SystemClock.elapsedRealtime()))
         }
     }
 
-    private fun loadSettingsSnapshot() {
+    private fun handleShortcutTap(preset: com.frank.voiceoverlay.shortcuts.ShortcutPreset) {
         lifecycleScope.launch {
-            val settings = settingsStore.readOnce()
-            apiKeySnapshot = settings.openAiApiKey
-            uiState.update { state ->
-                state.copy(shortcuts = shortcutRepository.listPresets())
-            }
+            controller.onShortcutTap(preset)
         }
     }
 
-    private fun onBubbleTap() {
-        if (uiState.value.interactionState == BubbleInteractionState.ShortcutsExpanded) {
-            collapseShortcuts()
-            return
-        }
-
-        when (gestureInterpreter.onTap(SystemClock.elapsedRealtime())) {
-            BubbleGesture.SingleTapPending -> scheduleSingleTapResolution()
-            BubbleGesture.SingleTapConfirmed -> Unit
-            BubbleGesture.DoubleTap -> {
+    private fun applyBubbleCommand(command: OverlayBubbleCommand) {
+        when (command) {
+            OverlayBubbleCommand.CancelPendingSingleTapResolution -> pendingTapResolutionJob?.cancel()
+            OverlayBubbleCommand.None -> Unit
+            is OverlayBubbleCommand.ScheduleSingleTapResolution -> {
                 pendingTapResolutionJob?.cancel()
-                collapseShortcuts()
-                lifecycleScope.launch {
-                    when (coordinator.state.value) {
-                        RecordingState.IDLE -> coordinator.startRecording()
-                        RecordingState.LISTENING -> coordinator.stopRecording()
-                        RecordingState.ERROR -> coordinator.reset()
-                        RecordingState.PROCESSING -> Unit
-                    }
+                pendingTapResolutionJob = lifecycleScope.launch {
+                    delay(command.delayMillis)
+                    controller.resolvePendingBubbleTap(SystemClock.elapsedRealtime())
                 }
             }
-        }
-    }
-
-    private fun scheduleSingleTapResolution() {
-        uiState.update { state ->
-            state.copy(interactionState = BubbleInteractionState.PendingSingleTap)
-        }
-        pendingTapResolutionJob?.cancel()
-        pendingTapResolutionJob = lifecycleScope.launch {
-            delay(DOUBLE_TAP_WINDOW_MILLIS + 1)
-            if (gestureInterpreter.resolvePendingTap(SystemClock.elapsedRealtime()) == BubbleGesture.SingleTapConfirmed) {
-                uiState.update { state ->
-                    state.copy(interactionState = BubbleInteractionState.ShortcutsExpanded)
-                }
-            }
-        }
-    }
-
-    private fun onShortcutTap(preset: ShortcutPreset) {
-        gestureInterpreter.reset()
-        collapseShortcuts()
-        lifecycleScope.launch {
-            val accessibilityService = requireNotNull(OverlayAccessibilityService.activeInstance()) {
-                "Accessibility service unavailable"
-            }
-            check(accessibilityService.insert(preset.text)) {
-                "Unable to insert shortcut into the focused field"
-            }
-        }
-    }
-
-    private fun collapseShortcuts() {
-        gestureInterpreter.reset()
-        pendingTapResolutionJob?.cancel()
-        uiState.update { state ->
-            state.copy(interactionState = BubbleInteractionState.Collapsed)
         }
     }
 
     private fun createCoordinator(): DictationCoordinator {
         val transcriptionClient = OpenAiTranscriptionClient(
             baseUrl = OPENAI_BASE_URL,
-            apiKeyProvider = ::requireApiKey,
+            apiKeyProvider = ::requireCurrentApiKey,
         )
         val cleanupClient = OpenAiCleanupClient(
             baseUrl = OPENAI_BASE_URL,
-            apiKeyProvider = ::requireApiKey,
+            apiKeyProvider = ::requireCurrentApiKey,
         )
 
         return DictationCoordinator(
@@ -184,20 +129,18 @@ class OverlayBubbleService : LifecycleService() {
             transcribeFile = transcriptionClient::transcribe,
             cleanText = cleanupClient::clean,
             insertText = { text ->
-                val accessibilityService = requireNotNull(OverlayAccessibilityService.activeInstance()) {
-                    "Accessibility service unavailable"
-                }
-                check(accessibilityService.insert(text)) {
-                    "Unable to insert dictated text into the focused field"
+                check(insertIntoFocusedField(text)) {
+                    DICTATION_INSERTION_STATUS_MESSAGE
                 }
             },
             deleteFile = File::delete,
         )
     }
 
-    private fun requireApiKey(): String =
-        apiKeySnapshot.takeIf { it.isNotBlank() }
-            ?: error("OpenAI API key is required before starting dictation")
+    private fun requireCurrentApiKey(): String = controller.requireCurrentApiKey()
+
+    private fun insertIntoFocusedField(text: String): Boolean =
+        OverlayAccessibilityService.activeInstance()?.insert(text) == true
 
     private fun overlayLayoutParams() = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT,
@@ -214,6 +157,7 @@ class OverlayBubbleService : LifecycleService() {
     private companion object {
         const val OPENAI_BASE_URL = "https://api.openai.com"
         const val SETTINGS_FILE_NAME = "voice_overlay_settings.preferences_pb"
-        const val DOUBLE_TAP_WINDOW_MILLIS = 250L
+        const val DICTATION_INSERTION_STATUS_MESSAGE =
+            "Enable the accessibility service and focus a text field before inserting dictated text."
     }
 }
