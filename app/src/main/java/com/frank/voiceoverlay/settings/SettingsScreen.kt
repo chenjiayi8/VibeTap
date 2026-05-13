@@ -16,16 +16,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 
 @Composable
 fun SettingsScreen(
     uiState: SettingsUiState,
     onApiKeyChanged: (String) -> Unit,
     onOverlayEnabledChanged: (Boolean) -> Unit,
+    onPresetChanged: (presetId: String, label: String, text: String) -> Unit,
     onOpenOverlaySettings: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -93,21 +99,47 @@ fun SettingsScreen(
 
             SettingsSection(title = "Shortcut Presets") {
                 uiState.presets.forEach { preset ->
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = preset.label,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = preset.text,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
-                    }
+                    EditablePresetCard(
+                        preset = preset,
+                        onSave = { label, text -> onPresetChanged(preset.id, label, text) },
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EditablePresetCard(
+    preset: ShortcutPreset,
+    onSave: (label: String, text: String) -> Unit,
+) {
+    var label by remember(preset.id, preset.label) { mutableStateOf(preset.label) }
+    var text by remember(preset.id, preset.text) { mutableStateOf(preset.text) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = preset.id,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedTextField(
+            value = label,
+            onValueChange = { label = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Preset label") },
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Preset text") },
+        )
+        Button(onClick = { onSave(label, text) }) {
+            Text("Save preset")
+        }
+        HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
     }
 }
 

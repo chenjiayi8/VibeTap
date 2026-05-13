@@ -18,5 +18,6 @@ class SettingsScreenTest {
     fun screenShowsApiKeyAndShortcutSections() {
         composeRule.onNodeWithText("OpenAI API Key").assertIsDisplayed()
         composeRule.onNodeWithText("Shortcut Presets").assertIsDisplayed()
+        composeRule.onNodeWithText("Save preset").assertIsDisplayed()
     }
 }
