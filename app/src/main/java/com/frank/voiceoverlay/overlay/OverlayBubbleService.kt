@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.IBinder
 import android.os.SystemClock
+import android.view.View
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
 class OverlayBubbleService : LifecycleService() {
     private lateinit var windowManager: WindowManager
     private lateinit var composeView: ComposeView
+    private lateinit var composeViewTreeOwner: OverlayWindowComposeViewTreeOwner
 
     private val settingsStore by lazy {
         SettingsStore(
@@ -51,9 +53,12 @@ class OverlayBubbleService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        composeViewTreeOwner = OverlayWindowComposeViewTreeOwner()
 
         composeView = ComposeView(this).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            id = View.generateViewId()
+            composeViewTreeOwner.attachTo(this)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 val currentState by controller.uiState.collectAsState()
                 MaterialTheme {
@@ -74,6 +79,9 @@ class OverlayBubbleService : LifecycleService() {
         pendingTapResolutionJob?.cancel()
         if (::composeView.isInitialized && composeView.parent != null) {
             windowManager.removeView(composeView)
+        }
+        if (::composeViewTreeOwner.isInitialized) {
+            composeViewTreeOwner.dispose()
         }
         super.onDestroy()
     }
