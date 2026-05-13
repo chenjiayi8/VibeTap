@@ -11,14 +11,17 @@ data class SettingsUiState(
     val openAiApiKey: String = "",
     val overlayEnabled: Boolean = false,
     val overlayPermissionGranted: Boolean = false,
+    val microphonePermissionGranted: Boolean = false,
     val presets: List<ShortcutPreset> = emptyList(),
 )
 
 class SettingsViewModel(
     private val settingsStore: SettingsStore,
     private val hasOverlayPermission: () -> Boolean,
+    private val hasMicrophonePermission: () -> Boolean,
     private val openOverlaySettings: () -> Unit,
     private val openAccessibilitySettings: () -> Unit,
+    private val requestMicrophonePermission: () -> Unit,
     private val scope: CoroutineScope,
 ) {
     private val mutableUiState = MutableStateFlow(SettingsUiState())
@@ -62,6 +65,11 @@ class SettingsViewModel(
         openAccessibilitySettings()
     }
 
+    fun onRequestMicrophonePermission() {
+        requestMicrophonePermission()
+        refreshPermissionState()
+    }
+
     fun onPresetChanged(presetId: String, label: String, text: String) {
         scope.launch {
             savePresetChange(presetId, label, text)
@@ -76,8 +84,12 @@ class SettingsViewModel(
 
     internal suspend fun reloadSettings() {
         val overlayPermissionGranted = hasOverlayPermission()
+        val microphonePermissionGranted = hasMicrophonePermission()
         val normalizedSettings = settingsStore.readOnce().normalizedForPermission(overlayPermissionGranted)
-        mutableUiState.value = normalizedSettings.toUiState(overlayPermissionGranted)
+        mutableUiState.value = normalizedSettings.toUiState(
+            overlayPermissionGranted = overlayPermissionGranted,
+            microphonePermissionGranted = microphonePermissionGranted,
+        )
     }
 
     internal suspend fun savePresetChange(presetId: String, label: String, text: String): Boolean {
@@ -114,10 +126,14 @@ class SettingsViewModel(
         return normalizedSettings
     }
 
-    private fun AppSettings.toUiState(overlayPermissionGranted: Boolean) = SettingsUiState(
+    private fun AppSettings.toUiState(
+        overlayPermissionGranted: Boolean,
+        microphonePermissionGranted: Boolean,
+    ) = SettingsUiState(
         openAiApiKey = openAiApiKey,
         overlayEnabled = overlayEnabled,
         overlayPermissionGranted = overlayPermissionGranted,
+        microphonePermissionGranted = microphonePermissionGranted,
         presets = presets,
     )
 }
