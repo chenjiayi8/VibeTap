@@ -9,6 +9,7 @@
 
 # Worktrees
 .worktrees/
+.env
 
 # Gradle / Android
 .gradle/
