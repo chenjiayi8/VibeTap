@@ -1,4 +1,4 @@
-package com.frank.vibetap.settings
+package com.frank.voiceoverlay.settings
 
 class SettingsStore(initialValue: AppSettings = AppSettings()) {
     private var currentValue: AppSettings = initialValue

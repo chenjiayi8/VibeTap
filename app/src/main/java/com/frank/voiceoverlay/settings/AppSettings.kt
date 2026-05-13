@@ -1,6 +1,6 @@
-package com.frank.vibetap.settings
+package com.frank.voiceoverlay.settings
 
-import com.frank.vibetap.shortcuts.ShortcutPreset
+import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 
 data class AppSettings(
     val openAiApiKey: String = "",
