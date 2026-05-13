@@ -31,8 +31,10 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(
             settingsStore = settingsStore,
             hasOverlayPermission = { false },
+            hasMicrophonePermission = { false },
             openOverlaySettings = {},
             openAccessibilitySettings = {},
+            requestMicrophonePermission = {},
             scope = this,
         )
 
@@ -62,8 +64,10 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(
             settingsStore = settingsStore,
             hasOverlayPermission = { true },
+            hasMicrophonePermission = { true },
             openOverlaySettings = {},
             openAccessibilitySettings = {},
+            requestMicrophonePermission = {},
             scope = this,
         )
 
@@ -78,8 +82,10 @@ class SettingsViewModelTest {
         val reloadedViewModel = SettingsViewModel(
             settingsStore = settingsStore,
             hasOverlayPermission = { true },
+            hasMicrophonePermission = { true },
             openOverlaySettings = {},
             openAccessibilitySettings = {},
+            requestMicrophonePermission = {},
             scope = this,
         )
         reloadedViewModel.reloadSettings()
@@ -98,8 +104,10 @@ class SettingsViewModelTest {
         val viewModel = SettingsViewModel(
             settingsStore = settingsStore,
             hasOverlayPermission = { true },
+            hasMicrophonePermission = { true },
             openOverlaySettings = {},
             openAccessibilitySettings = {},
+            requestMicrophonePermission = {},
             scope = this,
         )
 
@@ -111,6 +119,43 @@ class SettingsViewModelTest {
 
         assertFalse(saved)
         assertEquals(listOf(initialPreset), settingsStore.readOnce().presets)
+    }
+
+    @Test
+    fun reloadSettings_reportsMicrophonePermissionState() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+        val viewModel = SettingsViewModel(
+            settingsStore = settingsStore,
+            hasOverlayPermission = { true },
+            hasMicrophonePermission = { false },
+            openOverlaySettings = {},
+            openAccessibilitySettings = {},
+            requestMicrophonePermission = {},
+            scope = this,
+        )
+
+        viewModel.reloadSettings()
+
+        assertFalse(viewModel.uiState.value.microphonePermissionGranted)
+    }
+
+    @Test
+    fun onRequestMicrophonePermission_invokesPermissionCallback() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+        var requested = 0
+        val viewModel = SettingsViewModel(
+            settingsStore = settingsStore,
+            hasOverlayPermission = { true },
+            hasMicrophonePermission = { false },
+            openOverlaySettings = {},
+            openAccessibilitySettings = {},
+            requestMicrophonePermission = { requested += 1 },
+            scope = this,
+        )
+
+        viewModel.onRequestMicrophonePermission()
+
+        assertEquals(1, requested)
     }
 
     private fun createStore(scope: kotlinx.coroutines.CoroutineScope): DataStore<Preferences> =

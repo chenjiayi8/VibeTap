@@ -24,7 +24,7 @@ The current build depends on these Android capabilities:
 Notes:
 - Overlay permission is opened from the settings screen.
 - Accessibility settings are opened from the settings screen.
-- Microphone access is required by the recorder implementation, but the current build does not provide a dedicated in-app runtime permission flow.
+- Microphone access can be requested from the settings screen before starting dictation.
 
 ## How to add the OpenAI API key
 
@@ -76,7 +76,6 @@ After that, execute the proof cases from `.codex/docs/plans/2026-05-13-vibetap-p
 ## Known limitations
 
 - The connected Android test, install, launch, and proof-plan steps require a real device or emulator; they cannot pass in a device-less session.
-- The current build has no dedicated in-app microphone runtime-permission request flow.
 - The README documents the intended overlay dictation interactions, but the final on-device proof is still required to confirm the complete overlay lifecycle on hardware.
 - OpenAI API usage is direct from the client and is only acceptable for personal testing.
 - Release signing and store-distribution hardening are out of scope for this MVP.

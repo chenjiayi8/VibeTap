@@ -25,6 +25,7 @@ class SettingsScreenTest {
                         openAiApiKey = "",
                         overlayEnabled = false,
                         overlayPermissionGranted = false,
+                        microphonePermissionGranted = false,
                         presets = listOf(
                             ShortcutPreset(
                                 id = "ship-pr",
@@ -39,12 +40,14 @@ class SettingsScreenTest {
                     onPresetChanged = { _, _, _ -> },
                     onOpenOverlaySettings = {},
                     onOpenAccessibilitySettings = {},
+                    onRequestMicrophonePermission = {},
                 )
             }
         }
 
         composeRule.onNodeWithText("OpenAI API Key").assertIsDisplayed()
         composeRule.onNodeWithText("Shortcut Presets").assertIsDisplayed()
+        composeRule.onNodeWithText("Grant microphone access").assertIsDisplayed()
         composeRule.onNodeWithText("Save preset").assertIsDisplayed()
     }
 }

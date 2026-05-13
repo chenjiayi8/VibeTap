@@ -34,6 +34,7 @@ fun SettingsScreen(
     onPresetChanged: (presetId: String, label: String, text: String) -> Unit,
     onOpenOverlaySettings: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
+    onRequestMicrophonePermission: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
@@ -93,6 +94,37 @@ fun SettingsScreen(
                     }
                     Button(onClick = onOpenAccessibilitySettings) {
                         Text("Open accessibility settings")
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Microphone access",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = if (uiState.microphonePermissionGranted) {
+                                "Microphone permission granted."
+                            } else {
+                                "Grant microphone access before starting dictation."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Button(onClick = onRequestMicrophonePermission) {
+                        Text(
+                            text = if (uiState.microphonePermissionGranted) {
+                                "Refresh mic access"
+                            } else {
+                                "Grant microphone access"
+                            },
+                        )
                     }
                 }
             }

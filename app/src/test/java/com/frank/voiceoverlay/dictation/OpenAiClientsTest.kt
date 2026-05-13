@@ -74,7 +74,26 @@ class OpenAiClientsTest {
     @Test
     fun cleanup_postsInstructionsAndInputToResponsesApi() = runTest {
         val server = MockWebServer()
-        server.enqueue(MockResponse().setBody("""{"output_text":"hello"}"""))
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "output": [
+                    {
+                      "type": "message",
+                      "role": "assistant",
+                      "content": [
+                        {
+                          "type": "output_text",
+                          "text": "hello"
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """.trimIndent(),
+            ),
+        )
         server.start()
 
         val client = OpenAiCleanupClient(
@@ -115,7 +134,22 @@ class OpenAiClientsTest {
     @Test
     fun cleanup_throwsParseFailureWhenOutputTextIsMissing() = runTest {
         val server = MockWebServer()
-        server.enqueue(MockResponse().setBody("""{"id":"resp_123"}"""))
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "id": "resp_123",
+                  "output": [
+                    {
+                      "type": "message",
+                      "role": "assistant",
+                      "content": []
+                    }
+                  ]
+                }
+                """.trimIndent(),
+            ),
+        )
         server.start()
 
         val client = OpenAiCleanupClient(
@@ -128,6 +162,44 @@ class OpenAiClientsTest {
         }
 
         assertTrue(error.responseBody.contains("resp_123"))
+        server.shutdown()
+    }
+
+    @Test
+    fun cleanup_aggregatesMultipleOutputTextItems() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "output": [
+                    {
+                      "type": "message",
+                      "role": "assistant",
+                      "content": [
+                        {
+                          "type": "output_text",
+                          "text": "hello"
+                        },
+                        {
+                          "type": "output_text",
+                          "text": " world"
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+
+        val client = OpenAiCleanupClient(
+            baseUrl = server.url("/").toString(),
+            apiKeyProvider = { "sk-test" },
+        )
+
+        assertEquals("hello world", client.clean("uh hello hello"))
         server.shutdown()
     }
 }

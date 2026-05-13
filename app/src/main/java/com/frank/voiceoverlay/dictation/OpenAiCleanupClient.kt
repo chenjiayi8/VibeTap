@@ -63,7 +63,7 @@ class OpenAiCleanupClient(
         }
 
         try {
-            return json.decodeFromString<CleanupResponse>(responseBody).outputText
+            return json.decodeFromString<CleanupResponse>(responseBody).requireOutputText()
         } catch (exception: SerializationException) {
             throw OpenAiClientException.ParseFailure("cleanup", responseBody, exception)
         } catch (exception: IllegalArgumentException) {
@@ -80,7 +80,30 @@ class OpenAiCleanupClient(
 
     @Serializable
     private data class CleanupResponse(
-        @SerialName("output_text") val outputText: String,
+        @SerialName("output") val output: List<ResponseOutputItem> = emptyList(),
+    ) {
+        fun requireOutputText(): String {
+            val text = output.asSequence()
+                .flatMap { it.content.asSequence() }
+                .mapNotNull { item ->
+                    item.text?.takeIf { item.type == "output_text" && it.isNotBlank() }
+                }
+                .joinToString(separator = "")
+
+            require(text.isNotBlank()) { "Response did not include output_text content" }
+            return text
+        }
+    }
+
+    @Serializable
+    private data class ResponseOutputItem(
+        @SerialName("content") val content: List<ResponseContentItem> = emptyList(),
+    )
+
+    @Serializable
+    private data class ResponseContentItem(
+        @SerialName("type") val type: String,
+        @SerialName("text") val text: String? = null,
     )
 
     private companion object {
