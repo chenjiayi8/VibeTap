@@ -1,6 +1,7 @@
 package com.frank.voiceoverlay.settings
 
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -17,15 +18,18 @@ class SettingsStore(
     private val json: Json = Json,
 ) {
     suspend fun save(settings: AppSettings) {
+        writeSettings(settings)
+    }
+
+    suspend fun update(transform: (AppSettings) -> AppSettings) {
         dataStore.edit { preferences ->
-            preferences[OPENAI_API_KEY] = settings.openAiApiKey
-            preferences[OVERLAY_ENABLED] = settings.overlayEnabled
-            preferences[SHORTCUT_PRESETS] = json.encodeToString(settings.presets)
+            val updatedSettings = transform(preferences.toAppSettings())
+            preferences.writeSettings(updatedSettings)
         }
     }
 
-    suspend fun readOnce(): AppSettings {
-        val preferences = dataStore.data
+    suspend fun readOnce(): AppSettings =
+        dataStore.data
             .catch { error ->
                 if (error is IOException) {
                     emit(emptyPreferences())
@@ -34,12 +38,24 @@ class SettingsStore(
                 }
             }
             .first()
+            .toAppSettings()
 
-        return AppSettings(
-            openAiApiKey = preferences[OPENAI_API_KEY].orEmpty(),
-            overlayEnabled = preferences[OVERLAY_ENABLED] ?: false,
-            presets = decodePresets(preferences[SHORTCUT_PRESETS]),
-        )
+    private suspend fun writeSettings(settings: AppSettings) {
+        dataStore.edit { preferences ->
+            preferences.writeSettings(settings)
+        }
+    }
+
+    private fun Preferences.toAppSettings(): AppSettings = AppSettings(
+        openAiApiKey = this[OPENAI_API_KEY].orEmpty(),
+        overlayEnabled = this[OVERLAY_ENABLED] ?: false,
+        presets = decodePresets(this[SHORTCUT_PRESETS]),
+    )
+
+    private fun MutablePreferences.writeSettings(settings: AppSettings) {
+        this[OPENAI_API_KEY] = settings.openAiApiKey
+        this[OVERLAY_ENABLED] = settings.overlayEnabled
+        this[SHORTCUT_PRESETS] = json.encodeToString(settings.presets)
     }
 
     private fun decodePresets(rawPresets: String?): List<ShortcutPreset> =

@@ -9,7 +9,8 @@ class ShortcutPresetRepository(
         settingsStore.readOnce().presets.sortedBy(ShortcutPreset::order)
 
     suspend fun savePresets(presets: List<ShortcutPreset>) {
-        val currentSettings = settingsStore.readOnce()
-        settingsStore.save(currentSettings.copy(presets = presets.sortedBy(ShortcutPreset::order)))
+        settingsStore.update { settings ->
+            settings.copy(presets = presets.sortedBy(ShortcutPreset::order))
+        }
     }
 }
