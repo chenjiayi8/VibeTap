@@ -7,4 +7,5 @@ data class BubbleUiState(
     val recordingState: RecordingState = RecordingState.IDLE,
     val shortcutsVisible: Boolean = false,
     val shortcuts: List<ShortcutPreset> = emptyList(),
+    val hasPendingSingleTap: Boolean = false,
 )
