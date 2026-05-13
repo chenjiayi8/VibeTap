@@ -45,18 +45,16 @@ class DictationCoordinator(
 
         mutableState.value = RecordingState.PROCESSING
 
-        var audioFile: File? = null
         try {
-            audioFile = recorder.stop()
+            val audioFile = recorder.stop()
             val transcript = transcribeFile(audioFile)
             val cleanedText = cleanText(transcript)
             insertText(cleanedText)
+            deleteFile(audioFile)
             mutableState.value = RecordingState.IDLE
         } catch (error: Throwable) {
             mutableState.value = RecordingState.ERROR
             throw error
-        } finally {
-            audioFile?.let(deleteFile)
         }
     }
 }
