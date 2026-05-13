@@ -1,5 +1,8 @@
 package com.frank.voiceoverlay.shortcuts
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class ShortcutPreset(
     val id: String,
     val label: String,
