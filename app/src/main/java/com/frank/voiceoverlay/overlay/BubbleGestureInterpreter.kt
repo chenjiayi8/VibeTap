@@ -2,6 +2,7 @@ package com.frank.voiceoverlay.overlay
 
 sealed interface BubbleGesture {
     data object SingleTapPending : BubbleGesture
+    data object SingleTapConfirmed : BubbleGesture
     data object DoubleTap : BubbleGesture
 }
 
@@ -22,5 +23,19 @@ class BubbleGestureInterpreter(
             pendingTapAtMillis = timestampMillis
             BubbleGesture.SingleTapPending
         }
+    }
+
+    fun resolvePendingTap(timestampMillis: Long): BubbleGesture? {
+        val pendingTap = pendingTapAtMillis ?: return null
+        if (timestampMillis - pendingTap < doubleTapWindowMillis) {
+            return null
+        }
+
+        pendingTapAtMillis = null
+        return BubbleGesture.SingleTapConfirmed
+    }
+
+    fun reset() {
+        pendingTapAtMillis = null
     }
 }
