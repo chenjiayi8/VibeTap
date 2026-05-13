@@ -9,14 +9,14 @@ class DictationCoordinator(
     private val recorder: AudioRecorder,
     private val transcribeFile: suspend (File) -> String,
     private val cleanText: suspend (String) -> String,
-    private val insertText: (String) -> Unit,
+    private val insertText: suspend (String) -> Unit,
     private val deleteFile: (File) -> Boolean,
 ) {
     constructor(
         recorder: AudioRecorder,
         transcribe: suspend () -> String,
         clean: suspend () -> String,
-        insertText: (String) -> Unit,
+        insertText: suspend (String) -> Unit,
         deleteFile: () -> Boolean,
     ) : this(
         recorder = recorder,
@@ -45,16 +45,45 @@ class DictationCoordinator(
 
         mutableState.value = RecordingState.PROCESSING
 
+        var audioFile: File? = null
+        var pendingError: Throwable? = null
+
         try {
-            val audioFile = recorder.stop()
+            audioFile = recorder.stop()
             val transcript = transcribeFile(audioFile)
             val cleanedText = cleanText(transcript)
             insertText(cleanedText)
-            deleteFile(audioFile)
-            mutableState.value = RecordingState.IDLE
         } catch (error: Throwable) {
+            pendingError = error
+        }
+
+        audioFile?.let { file ->
+            try {
+                if (!deleteFile(file)) {
+                    throw IllegalStateException("Failed to delete recorded audio file")
+                }
+            } catch (deleteError: Throwable) {
+                if (pendingError == null) {
+                    pendingError = deleteError
+                } else {
+                    pendingError.addSuppressed(deleteError)
+                }
+            }
+        }
+
+        pendingError?.let { error ->
             mutableState.value = RecordingState.ERROR
             throw error
         }
+
+        mutableState.value = RecordingState.IDLE
+    }
+
+    fun reset() {
+        require(mutableState.value == RecordingState.ERROR) {
+            "Coordinator can only reset from ERROR"
+        }
+
+        mutableState.value = RecordingState.IDLE
     }
 }

@@ -71,9 +71,153 @@ class DictationCoordinatorTest {
         assertEquals("delete failed", error.message)
         assertEquals(RecordingState.ERROR, coordinator.state.value)
     }
+
+    @Test
+    fun stopRecording_cleansUpTempFileAndSetsErrorWhenTranscriptionFails() = runTest {
+        val fakeRecorder = FakeAudioRecorder()
+        val expectedFile = fakeRecorder.recordedFile
+        val deletedFiles = mutableListOf<File>()
+        val coordinator = DictationCoordinator(
+            recorder = fakeRecorder,
+            transcribeFile = { throw IllegalStateException("transcription failed") },
+            cleanText = { "hello" },
+            insertText = {},
+            deleteFile = {
+                deletedFiles += it
+                true
+            },
+        )
+
+        coordinator.startRecording()
+
+        val error = org.junit.Assert.assertThrows(IllegalStateException::class.java, ThrowingRunnable {
+            kotlinx.coroutines.runBlocking { coordinator.stopRecording() }
+        })
+
+        assertEquals("transcription failed", error.message)
+        assertEquals(listOf(expectedFile), deletedFiles)
+        assertEquals(RecordingState.ERROR, coordinator.state.value)
+    }
+
+    @Test
+    fun stopRecording_treatsFalseDeleteResultAsFailure() = runTest {
+        val fakeRecorder = FakeAudioRecorder()
+        val coordinator = DictationCoordinator(
+            recorder = fakeRecorder,
+            transcribe = { "um hello hello" },
+            clean = { "hello" },
+            insertText = {},
+            deleteFile = { false },
+        )
+
+        coordinator.startRecording()
+
+        val error = org.junit.Assert.assertThrows(IllegalStateException::class.java, ThrowingRunnable {
+            kotlinx.coroutines.runBlocking { coordinator.stopRecording() }
+        })
+
+        assertEquals("Failed to delete recorded audio file", error.message)
+        assertEquals(RecordingState.ERROR, coordinator.state.value)
+    }
+
+    @Test
+    fun startRecording_requiresIdleState() = runTest {
+        val coordinator = DictationCoordinator(
+            recorder = FakeAudioRecorder(),
+            transcribe = { "um hello hello" },
+            clean = { "hello" },
+            insertText = {},
+            deleteFile = { true },
+        )
+
+        coordinator.startRecording()
+
+        val error = org.junit.Assert.assertThrows(IllegalArgumentException::class.java, ThrowingRunnable {
+            kotlinx.coroutines.runBlocking { coordinator.startRecording() }
+        })
+
+        assertEquals("Recording can only start from IDLE", error.message)
+        assertEquals(RecordingState.LISTENING, coordinator.state.value)
+    }
+
+    @Test
+    fun stopRecording_requiresListeningState() = runTest {
+        val coordinator = DictationCoordinator(
+            recorder = FakeAudioRecorder(),
+            transcribe = { "um hello hello" },
+            clean = { "hello" },
+            insertText = {},
+            deleteFile = { true },
+        )
+
+        val error = org.junit.Assert.assertThrows(IllegalArgumentException::class.java, ThrowingRunnable {
+            kotlinx.coroutines.runBlocking { coordinator.stopRecording() }
+        })
+
+        assertEquals("Recording can only stop from LISTENING", error.message)
+        assertEquals(RecordingState.IDLE, coordinator.state.value)
+    }
+
+    @Test
+    fun reset_requiresErrorState() = runTest {
+        val coordinator = DictationCoordinator(
+            recorder = FakeAudioRecorder(),
+            transcribe = { "um hello hello" },
+            clean = { "hello" },
+            insertText = {},
+            deleteFile = { true },
+        )
+
+        val error = org.junit.Assert.assertThrows(IllegalArgumentException::class.java, ThrowingRunnable {
+            coordinator.reset()
+        })
+
+        assertEquals("Coordinator can only reset from ERROR", error.message)
+        assertEquals(RecordingState.IDLE, coordinator.state.value)
+    }
+
+    @Test
+    fun reset_afterError_returnsToIdleAndAllowsRetry() = runTest {
+        val fakeRecorder = FakeAudioRecorder()
+        val inserted = mutableListOf<String>()
+        var shouldFail = true
+        val coordinator = DictationCoordinator(
+            recorder = fakeRecorder,
+            transcribe = {
+                if (shouldFail) throw IllegalStateException("transcription failed")
+                "um hello hello"
+            },
+            clean = { "hello" },
+            insertText = { inserted += it },
+            deleteFile = { true },
+        )
+
+        coordinator.startRecording()
+        org.junit.Assert.assertThrows(IllegalStateException::class.java, ThrowingRunnable {
+            kotlinx.coroutines.runBlocking { coordinator.stopRecording() }
+        })
+        assertEquals(RecordingState.ERROR, coordinator.state.value)
+
+        coordinator.reset()
+        assertEquals(RecordingState.IDLE, coordinator.state.value)
+
+        shouldFail = false
+        coordinator.startRecording()
+        coordinator.stopRecording()
+
+        assertEquals(listOf("hello"), inserted)
+        assertEquals(RecordingState.IDLE, coordinator.state.value)
+    }
 }
 
-private class FakeAudioRecorder : AudioRecorder {
+private class FakeAudioRecorder(
+    var recordedFile: File = kotlin.io.path.createTempFile(suffix = ".m4a").toFile(),
+) : AudioRecorder {
     override suspend fun start(): Unit = Unit
-    override suspend fun stop(): File = kotlin.io.path.createTempFile(suffix = ".m4a").toFile()
+
+    override suspend fun stop(): File {
+        return recordedFile.also {
+            recordedFile = kotlin.io.path.createTempFile(suffix = ".m4a").toFile()
+        }
+    }
 }
