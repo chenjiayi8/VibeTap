@@ -1,4 +1,4 @@
-package com.frank.vibetap.overlay
+package com.frank.voiceoverlay.overlay
 
 import android.app.Service
 import android.content.Intent

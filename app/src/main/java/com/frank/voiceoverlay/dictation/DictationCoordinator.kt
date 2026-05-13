@@ -1,4 +1,4 @@
-package com.frank.vibetap.dictation
+package com.frank.voiceoverlay.dictation
 
 data class DictationDraft(
     val transcript: String = "",

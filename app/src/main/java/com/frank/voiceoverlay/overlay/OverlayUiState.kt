@@ -1,4 +1,4 @@
-package com.frank.vibetap.overlay
+package com.frank.voiceoverlay.overlay
 
 enum class OverlayUiState {
     IDLE,

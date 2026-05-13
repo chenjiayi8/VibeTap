@@ -114,6 +114,36 @@ case "$( uname )" in                #(
   NONSTOP* )        nonstop=true ;;
 esac
 
+find_jdk_home() {
+    if command -v javac >/dev/null 2>&1
+    then
+        javac_path=$( command -v javac )
+        javac_home=$( cd -P "$( dirname "$javac_path" )/.." > /dev/null 2>&1 && printf '%s\n' "$PWD" )
+        if [ -x "$javac_home/bin/java" ] && [ -x "$javac_home/bin/javac" ]
+        then
+            printf '%s\n' "$javac_home"
+            return 0
+        fi
+    fi
+
+    for candidate in "$HOME"/.jdks/* /usr/lib/jvm/*
+    do
+        if [ -d "$candidate" ] && [ -x "$candidate/bin/java" ] && [ -x "$candidate/bin/javac" ]
+        then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+if [ -z "$JAVA_HOME" ] || [ ! -x "$JAVA_HOME/bin/javac" ]
+then
+    JAVA_HOME=$( find_jdk_home ) || true
+    export JAVA_HOME
+fi
+
 
 
 # Determine the Java command to use to start the JVM.
