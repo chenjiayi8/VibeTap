@@ -116,6 +116,7 @@ private fun EditablePresetCard(
 ) {
     var label by remember(preset.id, preset.label) { mutableStateOf(preset.label) }
     var text by remember(preset.id, preset.text) { mutableStateOf(preset.text) }
+    var validationMessage by remember(preset.id) { mutableStateOf<String?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -125,18 +126,42 @@ private fun EditablePresetCard(
         )
         OutlinedTextField(
             value = label,
-            onValueChange = { label = it },
+            onValueChange = {
+                label = it
+                validationMessage = null
+            },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Preset label") },
             singleLine = true,
+            isError = validationMessage != null && label.trim().isBlank(),
         )
         OutlinedTextField(
             value = text,
-            onValueChange = { text = it },
+            onValueChange = {
+                text = it
+                validationMessage = null
+            },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Preset text") },
+            isError = validationMessage != null && text.trim().isBlank(),
         )
-        Button(onClick = { onSave(label, text) }) {
+        if (validationMessage != null) {
+            Text(
+                text = validationMessage!!,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        Button(
+            onClick = {
+                if (label.trim().isBlank() || text.trim().isBlank()) {
+                    validationMessage = "Preset label and text cannot be blank."
+                } else {
+                    validationMessage = null
+                    onSave(label.trim(), text.trim())
+                }
+            },
+        ) {
             Text("Save preset")
         }
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))

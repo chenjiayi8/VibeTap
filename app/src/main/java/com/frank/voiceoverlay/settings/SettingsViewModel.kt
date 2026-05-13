@@ -5,7 +5,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -31,23 +30,27 @@ class SettingsViewModel(
 
     fun refresh() {
         scope.launch {
-            mutableUiState.value = settingsStore.readOnce().toUiState(
-                overlayPermissionGranted = hasOverlayPermission(),
-            )
+            reloadSettings()
         }
     }
 
     fun onApiKeyChanged(openAiApiKey: String) {
-        updateSettings { it.copy(openAiApiKey = openAiApiKey) }
+        scope.launch {
+            settingsStore.update { it.copy(openAiApiKey = openAiApiKey) }
+            reloadSettings()
+        }
     }
 
     fun onOverlayEnabledChanged(enabled: Boolean) {
-        if (enabled && !hasOverlayPermission()) {
-            mutableUiState.update { it.copy(overlayPermissionGranted = false, overlayEnabled = false) }
-            return
-        }
+        scope.launch {
+            if (enabled && !hasOverlayPermission()) {
+                reloadSettings()
+                return@launch
+            }
 
-        updateSettings { it.copy(overlayEnabled = enabled) }
+            settingsStore.update { it.copy(overlayEnabled = enabled) }
+            reloadSettings()
+        }
     }
 
     fun onOpenOverlaySettings() {
@@ -60,30 +63,55 @@ class SettingsViewModel(
     }
 
     fun onPresetChanged(presetId: String, label: String, text: String) {
-        updateSettings { settings ->
-            settings.copy(
-                presets = settings.presets.updatedPreset(
-                    presetId = presetId,
-                    label = label,
-                    text = text,
-                ),
-            )
+        scope.launch {
+            savePresetChange(presetId, label, text)
         }
     }
 
     fun refreshPermissionState() {
-        mutableUiState.update {
-            it.copy(overlayPermissionGranted = hasOverlayPermission())
+        scope.launch {
+            reloadSettings()
         }
     }
 
-    private fun updateSettings(transform: (AppSettings) -> AppSettings) {
-        scope.launch {
-            settingsStore.update(transform)
-            mutableUiState.value = settingsStore.readOnce().toUiState(
-                overlayPermissionGranted = hasOverlayPermission(),
+    internal suspend fun reloadSettings() {
+        val overlayPermissionGranted = hasOverlayPermission()
+        val normalizedSettings = settingsStore.readOnce().normalizedForPermission(overlayPermissionGranted)
+        mutableUiState.value = normalizedSettings.toUiState(overlayPermissionGranted)
+    }
+
+    internal suspend fun savePresetChange(presetId: String, label: String, text: String): Boolean {
+        val sanitizedLabel = label.trim()
+        val sanitizedText = text.trim()
+        if (sanitizedLabel.isBlank() || sanitizedText.isBlank()) {
+            return false
+        }
+
+        settingsStore.update { settings ->
+            settings.copy(
+                presets = settings.presets.updatedPreset(
+                    presetId = presetId,
+                    label = sanitizedLabel,
+                    text = sanitizedText,
+                ),
             )
         }
+        reloadSettings()
+        return true
+    }
+
+    private suspend fun AppSettings.normalizedForPermission(
+        overlayPermissionGranted: Boolean,
+    ): AppSettings {
+        val normalizedSettings = if (overlayPermissionGranted || !overlayEnabled) {
+            this
+        } else {
+            copy(overlayEnabled = false)
+        }
+        if (normalizedSettings != this) {
+            settingsStore.save(normalizedSettings)
+        }
+        return normalizedSettings
     }
 
     private fun AppSettings.toUiState(overlayPermissionGranted: Boolean) = SettingsUiState(
