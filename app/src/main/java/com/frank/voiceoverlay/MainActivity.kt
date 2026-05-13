@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
                     uiState = uiState,
                     onApiKeyChanged = settingsViewModel::onApiKeyChanged,
                     onOverlayEnabledChanged = settingsViewModel::onOverlayEnabledChanged,
+                    onPresetChanged = settingsViewModel::onPresetChanged,
                     onOpenOverlaySettings = settingsViewModel::onOpenOverlaySettings,
                     onOpenAccessibilitySettings = settingsViewModel::onOpenAccessibilitySettings,
                 )

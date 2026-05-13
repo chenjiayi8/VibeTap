@@ -59,6 +59,18 @@ class SettingsViewModel(
         openAccessibilitySettings()
     }
 
+    fun onPresetChanged(presetId: String, label: String, text: String) {
+        updateSettings { settings ->
+            settings.copy(
+                presets = settings.presets.updatedPreset(
+                    presetId = presetId,
+                    label = label,
+                    text = text,
+                ),
+            )
+        }
+    }
+
     fun refreshPermissionState() {
         mutableUiState.update {
             it.copy(overlayPermissionGranted = hasOverlayPermission())
@@ -80,4 +92,16 @@ class SettingsViewModel(
         overlayPermissionGranted = overlayPermissionGranted,
         presets = presets,
     )
+}
+
+internal fun List<ShortcutPreset>.updatedPreset(
+    presetId: String,
+    label: String,
+    text: String,
+): List<ShortcutPreset> = map { preset ->
+    if (preset.id == presetId) {
+        preset.copy(label = label, text = text)
+    } else {
+        preset
+    }
 }
