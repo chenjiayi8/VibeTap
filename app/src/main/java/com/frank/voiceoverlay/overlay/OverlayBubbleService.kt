@@ -11,8 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.frank.voiceoverlay.dictation.AndroidAudioRecorder
@@ -21,6 +19,7 @@ import com.frank.voiceoverlay.dictation.OpenAiCleanupClient
 import com.frank.voiceoverlay.dictation.OpenAiTranscriptionClient
 import com.frank.voiceoverlay.insertion.OverlayAccessibilityService
 import com.frank.voiceoverlay.settings.SettingsStore
+import com.frank.voiceoverlay.settings.voiceOverlaySettingsDataStore
 import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -32,9 +31,7 @@ class OverlayBubbleService : LifecycleService() {
 
     private val settingsStore by lazy {
         SettingsStore(
-            PreferenceDataStoreFactory.create {
-                applicationContext.preferencesDataStoreFile(SETTINGS_FILE_NAME)
-            },
+            applicationContext.voiceOverlaySettingsDataStore,
         )
     }
     private val coordinator by lazy(::createCoordinator)
@@ -156,7 +153,6 @@ class OverlayBubbleService : LifecycleService() {
 
     private companion object {
         const val OPENAI_BASE_URL = "https://api.openai.com"
-        const val SETTINGS_FILE_NAME = "voice_overlay_settings.preferences_pb"
         const val DICTATION_INSERTION_STATUS_MESSAGE =
             "Enable the accessibility service and focus a text field before inserting dictated text."
     }
