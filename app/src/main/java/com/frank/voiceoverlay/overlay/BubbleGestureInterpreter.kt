@@ -27,7 +27,7 @@ class BubbleGestureInterpreter(
 
     fun resolvePendingTap(timestampMillis: Long): BubbleGesture? {
         val pendingTap = pendingTapAtMillis ?: return null
-        if (timestampMillis - pendingTap < doubleTapWindowMillis) {
+        if (timestampMillis - pendingTap <= doubleTapWindowMillis) {
             return null
         }
 

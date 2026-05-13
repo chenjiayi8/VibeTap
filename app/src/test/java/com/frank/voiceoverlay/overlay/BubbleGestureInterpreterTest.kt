@@ -21,6 +21,15 @@ class BubbleGestureInterpreterTest {
     }
 
     @Test
+    fun pendingTapDoesNotResolveAtThresholdBoundary() {
+        val interpreter = BubbleGestureInterpreter(doubleTapWindowMillis = 250)
+
+        assertEquals(BubbleGesture.SingleTapPending, interpreter.onTap(1000))
+        assertEquals(null, interpreter.resolvePendingTap(1250))
+        assertEquals(BubbleGesture.SingleTapConfirmed, interpreter.resolvePendingTap(1251))
+    }
+
+    @Test
     fun longGapTap_allowsPendingTapToResolveBeforeNextTap() {
         val interpreter = BubbleGestureInterpreter(doubleTapWindowMillis = 250)
 
@@ -44,7 +53,8 @@ class BubbleGestureInterpreterTest {
 
         assertEquals(BubbleGesture.SingleTapPending, interpreter.onTap(1000))
         assertEquals(null, interpreter.resolvePendingTap(1200))
-        assertEquals(BubbleGesture.SingleTapConfirmed, interpreter.resolvePendingTap(1250))
+        assertEquals(null, interpreter.resolvePendingTap(1250))
+        assertEquals(BubbleGesture.SingleTapConfirmed, interpreter.resolvePendingTap(1251))
         assertEquals(null, interpreter.resolvePendingTap(1400))
     }
 
