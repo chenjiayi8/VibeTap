@@ -5,6 +5,18 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 class OverlayAccessibilityService : AccessibilityService() {
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        activeService = this
+    }
+
+    override fun onDestroy() {
+        if (activeService === this) {
+            activeService = null
+        }
+        super.onDestroy()
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // No-op: the service reacts only when insertion is explicitly requested.
     }
@@ -75,5 +87,12 @@ class OverlayAccessibilityService : AccessibilityService() {
                 )
             }
         }
+    }
+
+    companion object {
+        @Volatile
+        private var activeService: OverlayAccessibilityService? = null
+
+        fun activeInstance(): OverlayAccessibilityService? = activeService
     }
 }

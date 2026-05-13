@@ -1,13 +1,219 @@
 package com.frank.voiceoverlay.overlay
 
-import android.app.Service
 import android.content.Intent
+import android.graphics.PixelFormat
 import android.os.IBinder
+import android.os.SystemClock
+import android.view.Gravity
+import android.view.WindowManager
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.preferencesDataStoreFile
+import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.lifecycleScope
+import com.frank.voiceoverlay.dictation.AndroidAudioRecorder
+import com.frank.voiceoverlay.dictation.DictationCoordinator
+import com.frank.voiceoverlay.dictation.OpenAiCleanupClient
+import com.frank.voiceoverlay.dictation.OpenAiTranscriptionClient
+import com.frank.voiceoverlay.dictation.RecordingState
+import com.frank.voiceoverlay.insertion.OverlayAccessibilityService
+import com.frank.voiceoverlay.settings.SettingsStore
+import com.frank.voiceoverlay.shortcuts.ShortcutPreset
+import com.frank.voiceoverlay.shortcuts.ShortcutPresetRepository
+import java.io.File
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
-class OverlayBubbleService : Service() {
-    override fun onBind(intent: Intent?): IBinder? = null
+class OverlayBubbleService : LifecycleService() {
+    private lateinit var windowManager: WindowManager
+    private lateinit var composeView: ComposeView
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
+    private val settingsStore by lazy {
+        SettingsStore(
+            PreferenceDataStoreFactory.create {
+                applicationContext.preferencesDataStoreFile(SETTINGS_FILE_NAME)
+            },
+        )
+    }
+    private val shortcutRepository by lazy { ShortcutPresetRepository(settingsStore) }
+    private val uiState = MutableStateFlow(BubbleUiState(shortcuts = ShortcutPreset.defaultPresets()))
+    private val gestureInterpreter = BubbleGestureInterpreter(DOUBLE_TAP_WINDOW_MILLIS)
+    private val coordinator by lazy(::createCoordinator)
+
+    @Volatile
+    private var apiKeySnapshot: String = ""
+    private var pendingTapResolutionJob: Job? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+
+        composeView = ComposeView(this).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            setContent {
+                val currentState by uiState.collectAsState()
+                MaterialTheme {
+                    OverlayBubbleView(
+                        uiState = currentState,
+                        onBubbleTap = ::onBubbleTap,
+                        onShortcutTap = ::onShortcutTap,
+                    )
+                }
+            }
+        }
+
+        windowManager.addView(composeView, overlayLayoutParams())
+        observeCoordinatorState()
+        loadSettingsSnapshot()
+    }
+
+    override fun onDestroy() {
+        pendingTapResolutionJob?.cancel()
+        if (::composeView.isInitialized && composeView.parent != null) {
+            windowManager.removeView(composeView)
+        }
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent): IBinder? {
+        super.onBind(intent)
+        return null
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+
+    private fun observeCoordinatorState() {
+        lifecycleScope.launch {
+            coordinator.state.collect { recordingState ->
+                uiState.update { state ->
+                    state.copy(recordingState = recordingState)
+                }
+            }
+        }
+    }
+
+    private fun loadSettingsSnapshot() {
+        lifecycleScope.launch {
+            val settings = settingsStore.readOnce()
+            apiKeySnapshot = settings.openAiApiKey
+            uiState.update { state ->
+                state.copy(shortcuts = shortcutRepository.listPresets())
+            }
+        }
+    }
+
+    private fun onBubbleTap() {
+        if (uiState.value.interactionState == BubbleInteractionState.ShortcutsExpanded) {
+            collapseShortcuts()
+            return
+        }
+
+        when (gestureInterpreter.onTap(SystemClock.elapsedRealtime())) {
+            BubbleGesture.SingleTapPending -> scheduleSingleTapResolution()
+            BubbleGesture.SingleTapConfirmed -> Unit
+            BubbleGesture.DoubleTap -> {
+                pendingTapResolutionJob?.cancel()
+                collapseShortcuts()
+                lifecycleScope.launch {
+                    when (coordinator.state.value) {
+                        RecordingState.IDLE -> coordinator.startRecording()
+                        RecordingState.LISTENING -> coordinator.stopRecording()
+                        RecordingState.ERROR -> coordinator.reset()
+                        RecordingState.PROCESSING -> Unit
+                    }
+                }
+            }
+        }
+    }
+
+    private fun scheduleSingleTapResolution() {
+        uiState.update { state ->
+            state.copy(interactionState = BubbleInteractionState.PendingSingleTap)
+        }
+        pendingTapResolutionJob?.cancel()
+        pendingTapResolutionJob = lifecycleScope.launch {
+            delay(DOUBLE_TAP_WINDOW_MILLIS + 1)
+            if (gestureInterpreter.resolvePendingTap(SystemClock.elapsedRealtime()) == BubbleGesture.SingleTapConfirmed) {
+                uiState.update { state ->
+                    state.copy(interactionState = BubbleInteractionState.ShortcutsExpanded)
+                }
+            }
+        }
+    }
+
+    private fun onShortcutTap(preset: ShortcutPreset) {
+        gestureInterpreter.reset()
+        collapseShortcuts()
+        lifecycleScope.launch {
+            val accessibilityService = requireNotNull(OverlayAccessibilityService.activeInstance()) {
+                "Accessibility service unavailable"
+            }
+            check(accessibilityService.insert(preset.text)) {
+                "Unable to insert shortcut into the focused field"
+            }
+        }
+    }
+
+    private fun collapseShortcuts() {
+        gestureInterpreter.reset()
+        pendingTapResolutionJob?.cancel()
+        uiState.update { state ->
+            state.copy(interactionState = BubbleInteractionState.Collapsed)
+        }
+    }
+
+    private fun createCoordinator(): DictationCoordinator {
+        val transcriptionClient = OpenAiTranscriptionClient(
+            baseUrl = OPENAI_BASE_URL,
+            apiKeyProvider = ::requireApiKey,
+        )
+        val cleanupClient = OpenAiCleanupClient(
+            baseUrl = OPENAI_BASE_URL,
+            apiKeyProvider = ::requireApiKey,
+        )
+
+        return DictationCoordinator(
+            recorder = AndroidAudioRecorder(applicationContext),
+            transcribeFile = transcriptionClient::transcribe,
+            cleanText = cleanupClient::clean,
+            insertText = { text ->
+                val accessibilityService = requireNotNull(OverlayAccessibilityService.activeInstance()) {
+                    "Accessibility service unavailable"
+                }
+                check(accessibilityService.insert(text)) {
+                    "Unable to insert dictated text into the focused field"
+                }
+            },
+            deleteFile = File::delete,
+        )
+    }
+
+    private fun requireApiKey(): String =
+        apiKeySnapshot.takeIf { it.isNotBlank() }
+            ?: error("OpenAI API key is required before starting dictation")
+
+    private fun overlayLayoutParams() = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        PixelFormat.TRANSLUCENT,
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START
+        x = 32
+        y = 240
+    }
+
+    private companion object {
+        const val OPENAI_BASE_URL = "https://api.openai.com"
+        const val SETTINGS_FILE_NAME = "voice_overlay_settings.preferences_pb"
+        const val DOUBLE_TAP_WINDOW_MILLIS = 250L
     }
 }
