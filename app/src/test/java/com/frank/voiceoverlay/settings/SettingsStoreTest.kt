@@ -2,6 +2,9 @@ package com.frank.voiceoverlay.settings
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -17,12 +20,7 @@ class SettingsStoreTest {
 
     @Test
     fun saveAndRead_roundTripsApiKeyAndPresets() = runTest {
-        val store: DataStore<androidx.datastore.preferences.core.Preferences> =
-            PreferenceDataStoreFactory.create(
-                scope = backgroundScope,
-                produceFile = { temporaryFolder.newFile("settings.preferences_pb") },
-            )
-
+        val store = createStore(backgroundScope)
         val settingsStore = SettingsStore(store)
         val input = AppSettings(
             openAiApiKey = "sk-test",
@@ -34,4 +32,29 @@ class SettingsStoreTest {
 
         assertEquals(input, settingsStore.readOnce())
     }
+
+    @Test
+    fun readOnce_usesDefaultPresetsWhenPresetJsonMissing() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+
+        assertEquals(ShortcutPreset.defaultPresets(), settingsStore.readOnce().presets)
+    }
+
+    @Test
+    fun readOnce_usesDefaultPresetsWhenPresetJsonIsMalformed() = runTest {
+        val store = createStore(backgroundScope)
+        store.edit { preferences ->
+            preferences[stringPreferencesKey("shortcut_presets")] = "not-json"
+        }
+
+        val settingsStore = SettingsStore(store)
+
+        assertEquals(ShortcutPreset.defaultPresets(), settingsStore.readOnce().presets)
+    }
+
+    private fun createStore(scope: kotlinx.coroutines.CoroutineScope): DataStore<Preferences> =
+        PreferenceDataStoreFactory.create(
+            scope = scope,
+            produceFile = { temporaryFolder.newFile("settings-${System.nanoTime()}.preferences_pb") },
+        )
 }
