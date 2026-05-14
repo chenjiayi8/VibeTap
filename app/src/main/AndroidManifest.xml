@@ -10,7 +10,7 @@
     android:supportsRtl="true">
     <service
       android:name="com.frank.voiceoverlay.insertion.OverlayAccessibilityService"
-      android:exported="true"
+      android:exported="false"
       android:label="@string/accessibility_service_description"
       android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
       <intent-filter>
@@ -24,7 +24,7 @@
 
     <service
       android:name="com.frank.voiceoverlay.overlay.OverlayBubbleService"
-      android:exported="true" />
+      android:exported="false" />
 
     <service
       android:name="com.frank.voiceoverlay.ime.VibeTapImeService"
