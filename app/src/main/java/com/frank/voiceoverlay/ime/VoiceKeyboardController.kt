@@ -93,13 +93,19 @@ class VoiceKeyboardController(
     }
 
     suspend fun onSkillBubbleTapped(preset: ShortcutPreset) {
-        val didCommit = commitPhrase(preset.text)
-        if (didCommit) {
-            clearStatus()
-        } else {
-            mutableUiState.update { state ->
-                state.copy(statusMessage = "No active text field for phrase insertion.")
+        try {
+            val didCommit = commitPhrase(preset.text)
+            if (didCommit) {
+                clearStatus()
+            } else {
+                mutableUiState.update { state ->
+                    state.copy(statusMessage = "No active text field for phrase insertion.")
+                }
             }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            setStatus(error.message)
         }
     }
 

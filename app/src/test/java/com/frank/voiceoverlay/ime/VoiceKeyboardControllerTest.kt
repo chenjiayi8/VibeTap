@@ -40,7 +40,7 @@ class VoiceKeyboardControllerTest {
             initialRecordingState = RecordingState.IDLE,
             shortcutsFailureMessage = "Shortcuts unavailable",
         )
-        val controller = environment.createControllerWithoutBinding(backgroundScope)
+        val controller = environment.createControllerWithoutBinding()
 
         controller.bind(backgroundScope)
         controller.bind(backgroundScope)
@@ -140,6 +140,33 @@ class VoiceKeyboardControllerTest {
             controller.uiState.value.statusMessage,
         )
     }
+
+    @Test
+    fun onSkillBubbleTapped_surfacesCommitFailure_andRethrowsCancellation() = runTest {
+        val preset = ShortcutPreset(id = "ship", label = "Ship", text = "Ship it", order = 0)
+        val failureEnvironment = FakeImeEnvironment(
+            shortcuts = listOf(preset),
+            commitPhraseFailure = IllegalStateException("Insertion failed"),
+        )
+        val failureController = failureEnvironment.createController(backgroundScope)
+        advanceUntilIdle()
+
+        failureController.onSkillBubbleTapped(preset)
+        assertEquals("Insertion failed", failureController.uiState.value.statusMessage)
+        assertEquals(listOf("Ship it"), failureEnvironment.committedPhrases)
+
+        val cancellation = CancellationException("cancel insert")
+        val cancellationEnvironment = FakeImeEnvironment(
+            shortcuts = listOf(preset),
+            commitPhraseFailure = cancellation,
+        )
+        val cancellationController = cancellationEnvironment.createController(backgroundScope)
+        advanceUntilIdle()
+
+        val thrown = captureCancellation { cancellationController.onSkillBubbleTapped(preset) }
+        assertEquals(cancellation, thrown)
+        assertEquals(null, cancellationController.uiState.value.statusMessage)
+    }
 }
 
 private suspend fun captureCancellation(block: suspend () -> Unit): CancellationException {
@@ -158,6 +185,7 @@ private class FakeImeEnvironment(
     private val shortcutsFailureMessage: String? = null,
     private val startFailure: Throwable? = null,
     private val resetFailure: Throwable? = null,
+    private val commitPhraseFailure: Throwable? = null,
 ) {
     val recordingState = MutableStateFlow(initialRecordingState)
     var startCalls = 0
@@ -170,12 +198,12 @@ private class FakeImeEnvironment(
     val committedPhrases = mutableListOf<String>()
 
     fun createController(scope: kotlinx.coroutines.CoroutineScope): VoiceKeyboardController {
-        return createControllerWithoutBinding(scope).also {
+        return createControllerWithoutBinding().also {
             it.bind(scope)
         }
     }
 
-    fun createControllerWithoutBinding(scope: kotlinx.coroutines.CoroutineScope): VoiceKeyboardController {
+    fun createControllerWithoutBinding(): VoiceKeyboardController {
         return VoiceKeyboardController(
             recordingState = recordingState,
             shortcutsProvider = {
@@ -201,6 +229,7 @@ private class FakeImeEnvironment(
             commitPhrase = { phrase ->
                 commitPhraseCalls += 1
                 committedPhrases += phrase
+                commitPhraseFailure?.let { throw it }
                 commitPhraseResult
             },
         )
