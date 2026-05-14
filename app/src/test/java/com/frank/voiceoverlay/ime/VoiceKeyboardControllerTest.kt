@@ -6,10 +6,12 @@ import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -44,11 +46,14 @@ class VoiceKeyboardControllerTest {
     fun bind_refreshesShortcutsOnSubsequentInvocations_and_surfacesShortcutLoadingFailure() = runTest {
         val firstPreset = ShortcutPreset(id = "first", label = "First", text = "1", order = 1)
         val refreshedPreset = ShortcutPreset(id = "refreshed", label = "Refreshed", text = "2", order = 0)
+        val recoveredPreset = ShortcutPreset(id = "recovered", label = "Recovered", text = "3", order = 2)
         val environment = FakeImeEnvironment(
             initialRecordingState = RecordingState.IDLE,
             shortcutsSequence = listOf(
                 listOf(firstPreset),
                 listOf(refreshedPreset),
+                listOf(recoveredPreset),
+                listOf(recoveredPreset),
             ),
         )
         val bindingScope = createBindingScope(testScheduler)
@@ -71,6 +76,39 @@ class VoiceKeyboardControllerTest {
         assertEquals(3, environment.shortcutsProviderCalls)
         assertEquals("Shortcuts unavailable", controller.uiState.value.statusMessage)
         assertEquals(listOf("Refreshed"), controller.uiState.value.skillBubbles.map { it.label })
+
+        environment.shortcutsFailureMessage = null
+        controller.bind(bindingScope)
+        advanceUntilIdle()
+
+        assertEquals(4, environment.shortcutsProviderCalls)
+        assertEquals(null, controller.uiState.value.statusMessage)
+        assertEquals(listOf("Recovered"), controller.uiState.value.skillBubbles.map { it.label })
+        bindingScope.cancel()
+    }
+
+    @Test
+    fun bind_ignoresStaleShortcutRefreshResults() = runTest {
+        val stalePreset = ShortcutPreset(id = "stale", label = "Stale", text = "1", order = 1)
+        val freshPreset = ShortcutPreset(id = "fresh", label = "Fresh", text = "2", order = 0)
+        val environment = FakeImeEnvironment(
+            shortcutsSequence = listOf(
+                listOf(stalePreset),
+                listOf(freshPreset),
+            ),
+            shortcutsProviderDelayMillisSequence = listOf(100L, 0L),
+        )
+        val bindingScope = createBindingScope(testScheduler)
+        val controller = environment.createControllerWithoutBinding()
+
+        controller.bind(bindingScope)
+        runCurrent()
+        controller.bind(bindingScope)
+        advanceUntilIdle()
+
+        assertEquals(2, environment.shortcutsProviderCalls)
+        assertEquals(listOf("Fresh"), controller.uiState.value.skillBubbles.map { it.label })
+        assertEquals(null, controller.uiState.value.statusMessage)
         bindingScope.cancel()
     }
 
@@ -251,6 +289,7 @@ private class FakeImeEnvironment(
     initialRecordingState: RecordingState = RecordingState.IDLE,
     private val shortcuts: List<ShortcutPreset> = emptyList(),
     private val shortcutsSequence: List<List<ShortcutPreset>>? = null,
+    private val shortcutsProviderDelayMillisSequence: List<Long>? = null,
     var shortcutsFailureMessage: String? = null,
     private val startFailure: Throwable? = null,
     private val resetFailure: Throwable? = null,
@@ -277,6 +316,9 @@ private class FakeImeEnvironment(
             recordingState = recordingState,
             shortcutsProvider = {
                 shortcutsProviderCalls += 1
+                shortcutsProviderDelayMillisSequence
+                    ?.getOrNull(shortcutsProviderCalls - 1)
+                    ?.let { delay(it) }
                 shortcutsFailureMessage?.let { throw IllegalStateException(it) }
                 shortcutsSequence?.getOrNull(shortcutsProviderCalls - 1) ?: shortcuts
             },
