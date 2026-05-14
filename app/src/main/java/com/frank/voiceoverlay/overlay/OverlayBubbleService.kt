@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.frank.voiceoverlay.dictation.AndroidAudioRecorder
+import com.frank.voiceoverlay.dictation.AndroidDictationLogger
 import com.frank.voiceoverlay.dictation.DictationCoordinator
 import com.frank.voiceoverlay.dictation.OpenAiCleanupClient
 import com.frank.voiceoverlay.dictation.OpenAiTranscriptionClient
@@ -122,7 +123,10 @@ class OverlayBubbleService : LifecycleService() {
         )
 
         return DictationCoordinator(
-            recorder = AndroidAudioRecorder(applicationContext),
+            recorder = AndroidAudioRecorder(
+                context = applicationContext,
+                logger = AndroidDictationLogger(RECORDER_LOG_TAG),
+            ),
             transcribeFile = transcriptionClient::transcribe,
             cleanText = cleanupClient::clean,
             insertText = { text ->
@@ -131,6 +135,7 @@ class OverlayBubbleService : LifecycleService() {
                 }
             },
             deleteFile = File::delete,
+            logger = AndroidDictationLogger(DICTATION_LOG_TAG),
         )
     }
 
@@ -153,6 +158,8 @@ class OverlayBubbleService : LifecycleService() {
 
     private companion object {
         const val OPENAI_BASE_URL = "https://api.openai.com"
+        const val RECORDER_LOG_TAG = "VibeTapRecorder"
+        const val DICTATION_LOG_TAG = "VibeTapDictation"
         const val DICTATION_INSERTION_STATUS_MESSAGE =
             "Enable the accessibility service and focus a text field before inserting dictated text."
     }

@@ -13,12 +13,14 @@ class DictationCoordinatorTest {
     fun stopRecording_runsTranscriptionCleanupAndInsertion() = runTest {
         val fakeRecorder = FakeAudioRecorder()
         val inserted = mutableListOf<String>()
+        val logger = FakeDictationLogger()
         val coordinator = DictationCoordinator(
             recorder = fakeRecorder,
             transcribe = { "um hello hello" },
             clean = { "hello" },
             insertText = { inserted += it },
             deleteFile = { true },
+            logger = logger,
         )
 
         coordinator.startRecording()
@@ -26,6 +28,20 @@ class DictationCoordinatorTest {
 
         assertEquals(RecordingState.IDLE, coordinator.state.value)
         assertEquals(listOf("hello"), inserted)
+        assertEquals(
+            listOf(
+                "startRecording:requested",
+                "startRecording:succeeded",
+                "stopRecording:requested",
+                "stopRecording:audioCaptured",
+                "stopRecording:transcriptionSucceeded",
+                "stopRecording:cleanupSucceeded",
+                "stopRecording:insertionSucceeded",
+                "stopRecording:fileDeleted",
+                "stopRecording:succeeded",
+            ),
+            logger.events,
+        )
     }
 
     @Test
@@ -54,12 +70,14 @@ class DictationCoordinatorTest {
     @Test
     fun stopRecording_setsErrorAndRethrowsWhenDeleteFails() = runTest {
         val fakeRecorder = FakeAudioRecorder()
+        val logger = FakeDictationLogger()
         val coordinator = DictationCoordinator(
             recorder = fakeRecorder,
             transcribe = { "um hello hello" },
             clean = { "hello" },
             insertText = {},
             deleteFile = { throw IllegalStateException("delete failed") },
+            logger = logger,
         )
 
         coordinator.startRecording()
@@ -70,6 +88,9 @@ class DictationCoordinatorTest {
 
         assertEquals("delete failed", error.message)
         assertEquals(RecordingState.ERROR, coordinator.state.value)
+        org.junit.Assert.assertTrue(
+            logger.events.contains("stopRecording:deleteFailed:delete failed"),
+        )
     }
 
     @Test
@@ -77,6 +98,7 @@ class DictationCoordinatorTest {
         val fakeRecorder = FakeAudioRecorder()
         val expectedFile = fakeRecorder.recordedFile
         val deletedFiles = mutableListOf<File>()
+        val logger = FakeDictationLogger()
         val coordinator = DictationCoordinator(
             recorder = fakeRecorder,
             transcribeFile = { throw IllegalStateException("transcription failed") },
@@ -86,6 +108,7 @@ class DictationCoordinatorTest {
                 deletedFiles += it
                 true
             },
+            logger = logger,
         )
 
         coordinator.startRecording()
@@ -97,6 +120,18 @@ class DictationCoordinatorTest {
         assertEquals("transcription failed", error.message)
         assertEquals(listOf(expectedFile), deletedFiles)
         assertEquals(RecordingState.ERROR, coordinator.state.value)
+        assertEquals(
+            listOf(
+                "startRecording:requested",
+                "startRecording:succeeded",
+                "stopRecording:requested",
+                "stopRecording:audioCaptured",
+                "stopRecording:transcriptionFailed:transcription failed",
+                "stopRecording:fileDeleted",
+                "stopRecording:failed:transcription failed",
+            ),
+            logger.events,
+        )
     }
 
     @Test
@@ -207,6 +242,18 @@ class DictationCoordinatorTest {
 
         assertEquals(listOf("hello"), inserted)
         assertEquals(RecordingState.IDLE, coordinator.state.value)
+    }
+}
+
+private class FakeDictationLogger : DictationLogger {
+    val events = mutableListOf<String>()
+
+    override fun debug(event: String) {
+        events += event
+    }
+
+    override fun error(event: String, throwable: Throwable) {
+        events += "$event:${throwable.message}"
     }
 }
 

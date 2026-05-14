@@ -11,6 +11,7 @@ class DictationCoordinator(
     private val cleanText: suspend (String) -> String,
     private val insertText: suspend (String) -> Unit,
     private val deleteFile: (File) -> Boolean,
+    private val logger: DictationLogger = NoOpDictationLogger,
 ) {
     constructor(
         recorder: AudioRecorder,
@@ -18,12 +19,14 @@ class DictationCoordinator(
         clean: suspend () -> String,
         insertText: suspend (String) -> Unit,
         deleteFile: () -> Boolean,
+        logger: DictationLogger = NoOpDictationLogger,
     ) : this(
         recorder = recorder,
         transcribeFile = { transcribe() },
         cleanText = { clean() },
         insertText = insertText,
         deleteFile = { deleteFile() },
+        logger = logger,
     )
 
     private val mutableState = MutableStateFlow(RecordingState.IDLE)
@@ -34,8 +37,15 @@ class DictationCoordinator(
             "Recording can only start from IDLE"
         }
 
-        recorder.start()
-        mutableState.value = RecordingState.LISTENING
+        logger.debug("startRecording:requested")
+        try {
+            recorder.start()
+            mutableState.value = RecordingState.LISTENING
+            logger.debug("startRecording:succeeded")
+        } catch (error: Throwable) {
+            logger.error("startRecording:failed", error)
+            throw error
+        }
     }
 
     suspend fun stopRecording() {
@@ -43,6 +53,7 @@ class DictationCoordinator(
             "Recording can only stop from LISTENING"
         }
 
+        logger.debug("stopRecording:requested")
         mutableState.value = RecordingState.PROCESSING
 
         var audioFile: File? = null
@@ -50,10 +61,18 @@ class DictationCoordinator(
 
         try {
             audioFile = recorder.stop()
+            logger.debug("stopRecording:audioCaptured")
             val transcript = transcribeFile(audioFile)
+            logger.debug("stopRecording:transcriptionSucceeded")
             val cleanedText = cleanText(transcript)
+            logger.debug("stopRecording:cleanupSucceeded")
             insertText(cleanedText)
+            logger.debug("stopRecording:insertionSucceeded")
         } catch (error: Throwable) {
+            when {
+                audioFile == null -> logger.error("stopRecording:audioCaptureFailed", error)
+                pendingError == null -> logger.error("stopRecording:transcriptionFailed", error)
+            }
             pendingError = error
         }
 
@@ -62,7 +81,9 @@ class DictationCoordinator(
                 if (!deleteFile(file)) {
                     throw IllegalStateException("Failed to delete recorded audio file")
                 }
+                logger.debug("stopRecording:fileDeleted")
             } catch (deleteError: Throwable) {
+                logger.error("stopRecording:deleteFailed", deleteError)
                 if (pendingError == null) {
                     pendingError = deleteError
                 } else {
@@ -73,10 +94,12 @@ class DictationCoordinator(
 
         pendingError?.let { error ->
             mutableState.value = RecordingState.ERROR
+            logger.error("stopRecording:failed", error)
             throw error
         }
 
         mutableState.value = RecordingState.IDLE
+        logger.debug("stopRecording:succeeded")
     }
 
     fun reset() {

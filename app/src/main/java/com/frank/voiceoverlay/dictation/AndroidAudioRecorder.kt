@@ -7,17 +7,20 @@ import java.io.File
 
 class AndroidAudioRecorder(
     private val context: Context,
+    private val logger: DictationLogger = NoOpDictationLogger,
 ) : AudioRecorder {
     private var mediaRecorder: MediaRecorder? = null
     private var outputFile: File? = null
 
     override suspend fun start() {
         check(mediaRecorder == null) { "Recording already in progress" }
+        logger.debug("recorder.start:requested")
 
         val file = kotlin.io.path.createTempFile(
             directory = context.cacheDir.toPath(),
             suffix = ".m4a",
         ).toFile()
+        logger.debug("recorder.start:fileCreated:path=${file.absolutePath}")
 
         var recorder: MediaRecorder? = null
         try {
@@ -29,7 +32,9 @@ class AndroidAudioRecorder(
                 prepare()
                 start()
             }
+            logger.debug("recorder.start:succeeded")
         } catch (error: Throwable) {
+            logger.error("recorder.start:failed", error)
             recorder?.let {
                 runCatching { it.reset() }
                 runCatching { it.release() }
@@ -45,9 +50,11 @@ class AndroidAudioRecorder(
     override suspend fun stop(): File {
         val recorder = checkNotNull(mediaRecorder) { "Recording has not started" }
         val file = checkNotNull(outputFile) { "Recording output missing" }
+        logger.debug("recorder.stop:requested:path=${file.absolutePath}")
 
         try {
             recorder.stop()
+            logger.debug("recorder.stop:succeeded:bytes=${file.length()}")
         } finally {
             recorder.reset()
             recorder.release()
