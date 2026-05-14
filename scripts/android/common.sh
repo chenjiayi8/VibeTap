@@ -10,6 +10,10 @@ DEFAULT_SYSTEM_IMAGE="${VIBETAP_SYSTEM_IMAGE:-system-images;android-35;google_ap
 DEFAULT_PLATFORM="${VIBETAP_ANDROID_PLATFORM:-android-35}"
 DEFAULT_BUILD_TOOLS="${VIBETAP_BUILD_TOOLS:-35.0.0}"
 
+print_missing_android_sdk_message() {
+  echo "Missing Android SDK. Set ANDROID_SDK_ROOT/ANDROID_HOME or add sdk.dir to local.properties." >&2
+}
+
 require_python3() {
   command -v python3 >/dev/null || {
     echo "python3 is required for local.properties parsing." >&2
@@ -63,7 +67,7 @@ require_android_sdk_root() {
 
   if [[ "${resolve_status}" -eq 0 ]]; then
     if [[ -z "${sdk_root}" ]]; then
-      echo "Missing Android SDK. Set ANDROID_SDK_ROOT/ANDROID_HOME or add sdk.dir to local.properties." >&2
+      print_missing_android_sdk_message
       exit 1
     fi
 
@@ -72,7 +76,7 @@ require_android_sdk_root() {
   fi
 
   if [[ "${resolve_status}" -eq 1 ]]; then
-    echo "Missing Android SDK. Set ANDROID_SDK_ROOT/ANDROID_HOME or add sdk.dir to local.properties." >&2
+    print_missing_android_sdk_message
   fi
   exit "${resolve_status}"
 }
@@ -95,11 +99,15 @@ find_cmdline_tools_root() {
 }
 
 adb_bin() {
-  printf '%s/platform-tools/adb\n' "$(require_android_sdk_root)"
+  local sdk_root
+  sdk_root=$(require_android_sdk_root)
+  printf '%s/platform-tools/adb\n' "${sdk_root}"
 }
 
 emulator_bin() {
-  printf '%s/emulator/emulator\n' "$(require_android_sdk_root)"
+  local sdk_root
+  sdk_root=$(require_android_sdk_root)
+  printf '%s/emulator/emulator\n' "${sdk_root}"
 }
 
 sdkmanager_bin() {
@@ -132,34 +140,68 @@ require_executable() {
   }
 }
 
+require_flag_value() {
+  local flag="${1}"
+  local value="${2-}"
+
+  if [[ $# -lt 2 || -z "${value}" || "${value}" == --* ]]; then
+    echo "Missing value for ${flag}" >&2
+    exit 1
+  fi
+}
+
 require_android_tools() {
+  local sdk_root tools_root
+
   if should_use_local_properties_sdk_dir; then
     require_python3
   fi
 
-  require_executable "$(adb_bin)"
-  require_executable "$(emulator_bin)"
-  require_executable "$(sdkmanager_bin)"
-  require_executable "$(avdmanager_bin)"
+  sdk_root=$(require_android_sdk_root)
+  require_executable "${sdk_root}/platform-tools/adb"
+  require_executable "${sdk_root}/emulator/emulator"
+
+  tools_root=$(find_cmdline_tools_root "${sdk_root}" || true)
+  [[ -n "${tools_root}" ]] || {
+    echo "Android command-line tools not found under ${sdk_root}/cmdline-tools." >&2
+    exit 1
+  }
+
+  require_executable "${tools_root}/bin/sdkmanager"
+  require_executable "${tools_root}/bin/avdmanager"
 }
 
 gradlew_cmd() {
   bash "${PROJECT_ROOT}/gradlew" "$@"
 }
 
+adb_target_args() {
+  local serial="${1-}"
+  if [[ -n "${serial}" ]]; then
+    printf '%s\0%s\0' -s "${serial}"
+  fi
+}
+
 wait_for_boot_completed() {
+  local serial="${1-}"
   local adb timeout_seconds deadline boot_completed device_state
+  local -a adb_target=()
+
   adb=$(adb_bin)
+  if [[ -n "${serial}" ]]; then
+    adb_target=(-s "${serial}")
+  fi
+
   timeout_seconds="${VIBETAP_BOOT_TIMEOUT_SECONDS:-300}"
   deadline=$((SECONDS + timeout_seconds))
   boot_completed="unavailable"
   device_state="unknown"
 
   while (( SECONDS < deadline )); do
-    device_state=$("${adb}" get-state 2>/dev/null | tr -d '\r' || true)
+    device_state=$("${adb}" "${adb_target[@]}" get-state 2>/dev/null | tr -d '\r' || true)
 
     if [[ "${device_state}" == "device" ]]; then
-      boot_completed=$("${adb}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+      boot_completed=$("${adb}" "${adb_target[@]}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
       if [[ "${boot_completed}" == "1" ]]; then
         return 0
       fi
@@ -175,16 +217,30 @@ wait_for_boot_completed() {
 }
 
 unlock_device() {
+  local serial="${1-}"
   local adb
+  local -a adb_target=()
+
   adb=$(adb_bin)
-  "${adb}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
-  "${adb}" shell input keyevent 82 >/dev/null 2>&1 || true
+  if [[ -n "${serial}" ]]; then
+    adb_target=(-s "${serial}")
+  fi
+
+  "${adb}" "${adb_target[@]}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+  "${adb}" "${adb_target[@]}" shell input keyevent 82 >/dev/null 2>&1 || true
 }
 
 launch_main_activity() {
+  local serial="${1-}"
   local adb
+  local -a adb_target=()
+
   adb=$(adb_bin)
-  "${adb}" shell am start -n "${MAIN_ACTIVITY}"
+  if [[ -n "${serial}" ]]; then
+    adb_target=(-s "${serial}")
+  fi
+
+  "${adb}" "${adb_target[@]}" shell am start -n "${MAIN_ACTIVITY}"
 }
 
 print_android_summary() {
