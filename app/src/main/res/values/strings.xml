@@ -2,5 +2,9 @@
   <string name="app_name">VibeTap</string>
   <string name="accessibility_service_name">VibeTap Accessibility</string>
   <string name="accessibility_service_description">Allows VibeTap to insert cleaned transcript text into the focused field.</string>
+  <string name="ime_service_name">VibeTap Keyboard</string>
+  <string name="ime_setup_description">Enable VibeTap in Android keyboard settings, then choose it as the active keyboard.</string>
+  <string name="dictation_requires_api_key">Add an OpenAI API key in settings before dictation.</string>
+  <string name="no_active_input_connection">No active text field for dictated text.</string>
   <string name="settings_placeholder">VibeTap is initialized. Continue implementation from the design plan.</string>
 </resources>

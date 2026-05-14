@@ -10,7 +10,7 @@
     android:supportsRtl="true">
     <service
       android:name="com.frank.voiceoverlay.insertion.OverlayAccessibilityService"
-      android:exported="false"
+      android:exported="true"
       android:label="@string/accessibility_service_description"
       android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
       <intent-filter>
@@ -24,7 +24,21 @@
 
     <service
       android:name="com.frank.voiceoverlay.overlay.OverlayBubbleService"
-      android:exported="false" />
+      android:exported="true" />
+
+    <service
+      android:name="com.frank.voiceoverlay.ime.VibeTapImeService"
+      android:exported="true"
+      android:label="@string/ime_service_name"
+      android:permission="android.permission.BIND_INPUT_METHOD">
+      <intent-filter>
+        <action android:name="android.view.InputMethod" />
+      </intent-filter>
+
+      <meta-data
+        android:name="android.view.im"
+        android:resource="@xml/vibetap_input_method" />
+    </service>
 
     <activity
       android:name="com.frank.voiceoverlay.MainActivity"
