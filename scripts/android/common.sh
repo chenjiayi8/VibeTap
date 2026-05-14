@@ -5,10 +5,36 @@ SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd -- "${SCRIPT_DIR}/../.." && pwd)
 APP_ID="com.frank.voiceoverlay"
 MAIN_ACTIVITY="${APP_ID}/.MainActivity"
-DEFAULT_AVD_NAME="${VIBETAP_AVD_NAME:-vibetap-api-35}"
-DEFAULT_SYSTEM_IMAGE="${VIBETAP_SYSTEM_IMAGE:-system-images;android-35;google_apis;x86_64}"
-DEFAULT_PLATFORM="${VIBETAP_ANDROID_PLATFORM:-android-35}"
-DEFAULT_BUILD_TOOLS="${VIBETAP_BUILD_TOOLS:-35.0.0}"
+APP_BUILD_GRADLE_FILE="${PROJECT_ROOT}/app/build.gradle.kts"
+FALLBACK_ANDROID_API_LEVEL="36"
+
+read_app_android_api_level() {
+  local app_android_api_level
+
+  [[ -f "${APP_BUILD_GRADLE_FILE}" ]] || return 1
+
+  app_android_api_level=$(sed -nE 's/^[[:space:]]*compileSdk[[:space:]]*=[[:space:]]*([0-9]+).*/\1/p' "${APP_BUILD_GRADLE_FILE}" | head -n 1)
+  [[ -n "${app_android_api_level}" ]] || return 1
+
+  printf '%s\n' "${app_android_api_level}"
+}
+
+resolve_default_android_api_level() {
+  local app_android_api_level
+
+  if app_android_api_level=$(read_app_android_api_level); then
+    printf '%s\n' "${app_android_api_level}"
+    return 0
+  fi
+
+  printf '%s\n' "${FALLBACK_ANDROID_API_LEVEL}"
+}
+
+DEFAULT_ANDROID_API_LEVEL=$(resolve_default_android_api_level)
+DEFAULT_AVD_NAME="${VIBETAP_AVD_NAME:-vibetap-api-${DEFAULT_ANDROID_API_LEVEL}}"
+DEFAULT_SYSTEM_IMAGE="${VIBETAP_SYSTEM_IMAGE:-system-images;android-${DEFAULT_ANDROID_API_LEVEL};google_apis;x86_64}"
+DEFAULT_PLATFORM="${VIBETAP_ANDROID_PLATFORM:-android-${DEFAULT_ANDROID_API_LEVEL}}"
+DEFAULT_BUILD_TOOLS="${VIBETAP_BUILD_TOOLS:-${DEFAULT_ANDROID_API_LEVEL}.0.0}"
 
 print_missing_android_sdk_message() {
   echo "Missing Android SDK. Set ANDROID_SDK_ROOT/ANDROID_HOME or add sdk.dir to local.properties." >&2
