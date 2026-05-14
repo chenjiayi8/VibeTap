@@ -5,6 +5,7 @@ import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +24,8 @@ class VoiceKeyboardController(
     private val mutableUiState = MutableStateFlow(ImeUiState(recordingState = recordingState.value))
     private val bindLock = Any()
     private var isBound = false
+    private var shortcutsRefreshJob: Job? = null
+    private var shortcutsRefreshGeneration = 0L
 
     val uiState: StateFlow<ImeUiState> = mutableUiState.asStateFlow()
 
@@ -49,20 +52,42 @@ class VoiceKeyboardController(
     }
 
     private fun refreshShortcuts(scope: CoroutineScope) {
-        scope.launch {
+        val generation = synchronized(bindLock) {
+            shortcutsRefreshJob?.cancel()
+            shortcutsRefreshGeneration += 1
+            shortcutsRefreshGeneration
+        }
+
+        val refreshJob = scope.launch {
             try {
                 val shortcuts = shortcutsProvider()
                     .sortedBy { it.order }
                     .take(3)
+                if (!isLatestShortcutsRefresh(generation)) {
+                    return@launch
+                }
                 mutableUiState.update { state ->
-                    state.copy(skillBubbles = shortcuts)
+                    state.copy(skillBubbles = shortcuts, statusMessage = null)
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
+                if (!isLatestShortcutsRefresh(generation)) {
+                    return@launch
+                }
                 setStatus(error.message)
             }
         }
+
+        synchronized(bindLock) {
+            if (generation == shortcutsRefreshGeneration) {
+                shortcutsRefreshJob = refreshJob
+            }
+        }
+    }
+
+    private fun isLatestShortcutsRefresh(generation: Long): Boolean = synchronized(bindLock) {
+        generation == shortcutsRefreshGeneration
     }
 
     fun onLayoutToggle() {
