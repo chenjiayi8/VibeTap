@@ -9,6 +9,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 private val keyboardRows = listOf(
@@ -67,8 +68,19 @@ private fun RowScope.KeyButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = Modifier.weight(weight),
+        modifier = Modifier
+            .weight(weight)
+            .testTag(keyTag(label)),
     ) {
         Text(text = label)
     }
+}
+
+private fun keyTag(label: String): String = when (label) {
+    "Mic" -> "key_mic"
+    "Float" -> "key_float"
+    "⌫" -> "key_backspace"
+    "Space" -> "key_space"
+    "Enter" -> "key_enter"
+    else -> "key_${label.lowercase()}"
 }
