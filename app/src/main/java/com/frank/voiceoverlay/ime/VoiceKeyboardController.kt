@@ -2,6 +2,7 @@ package com.frank.voiceoverlay.ime
 
 import com.frank.voiceoverlay.dictation.RecordingState
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,16 +21,17 @@ class VoiceKeyboardController(
     private val commitPhrase: suspend (String) -> Boolean,
 ) {
     private val mutableUiState = MutableStateFlow(ImeUiState(recordingState = recordingState.value))
+    private val bindLock = Any()
+    private var isBound = false
+
     val uiState: StateFlow<ImeUiState> = mutableUiState.asStateFlow()
 
     fun bind(scope: CoroutineScope) {
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val shortcuts = shortcutsProvider()
-                .sortedBy { it.order }
-                .take(3)
-            mutableUiState.update { state ->
-                state.copy(skillBubbles = shortcuts)
+        synchronized(bindLock) {
+            if (isBound) {
+                return
             }
+            isBound = true
         }
 
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -37,6 +39,21 @@ class VoiceKeyboardController(
                 mutableUiState.update { current ->
                     current.copy(recordingState = state)
                 }
+            }
+        }
+
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                val shortcuts = shortcutsProvider()
+                    .sortedBy { it.order }
+                    .take(3)
+                mutableUiState.update { state ->
+                    state.copy(skillBubbles = shortcuts)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                setStatus(error.message)
             }
         }
     }
@@ -66,6 +83,8 @@ class VoiceKeyboardController(
                 try {
                     resetRecording()
                     clearStatus()
+                } catch (error: CancellationException) {
+                    throw error
                 } catch (error: Throwable) {
                     setStatus(error.message)
                 }
@@ -88,6 +107,8 @@ class VoiceKeyboardController(
         try {
             action()
             clearStatus()
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Throwable) {
             setStatus(error.message)
         }
