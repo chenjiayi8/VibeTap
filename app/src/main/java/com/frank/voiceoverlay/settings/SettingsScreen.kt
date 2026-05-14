@@ -22,9 +22,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
+
+object SettingsScreenTestTags {
+    const val ApiKeySection = "settings_api_key_section"
+    const val OverlayBubbleLabel = "settings_overlay_bubble_label"
+    const val ShortcutPresetsSection = "settings_shortcut_presets_section"
+}
 
 @Composable
 fun SettingsScreen(
@@ -51,7 +58,10 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Bold,
             )
 
-            SettingsSection(title = "OpenAI API Key") {
+            SettingsSection(
+                title = "OpenAI API Key",
+                modifier = Modifier.testTag(SettingsScreenTestTags.ApiKeySection),
+            ) {
                 OutlinedTextField(
                     value = uiState.openAiApiKey,
                     onValueChange = onApiKeyChanged,
@@ -71,6 +81,7 @@ fun SettingsScreen(
                         Text(
                             text = "Enable overlay bubble",
                             style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.testTag(SettingsScreenTestTags.OverlayBubbleLabel),
                         )
                         Text(
                             text = if (uiState.overlayPermissionGranted) {
@@ -129,7 +140,10 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection(title = "Shortcut Presets") {
+            SettingsSection(
+                title = "Shortcut Presets",
+                modifier = Modifier.testTag(SettingsScreenTestTags.ShortcutPresetsSection),
+            ) {
                 uiState.presets.forEach { preset ->
                     EditablePresetCard(
                         preset = preset,
@@ -203,9 +217,13 @@ private fun EditablePresetCard(
 @Composable
 private fun SettingsSection(
     title: String,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,

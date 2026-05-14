@@ -59,11 +59,7 @@ find_matching_emulator() {
       fi
       matched_serial="${serial}"
       matched_status="${status}"
-      continue
     fi
-
-    echo "An emulator is already running for AVD '${running_avd_name}' (${serial}, ${status:-unknown}); requested '${target_avd}'. Stop the running emulator before starting a different AVD." >&2
-    return 2
   done < <("${adb}" devices | tail -n +2)
 
   if [[ -n "${matched_serial}" ]]; then
@@ -96,9 +92,6 @@ wait_for_launched_emulator_serial() {
         printf '%s\n' "${serial}"
         return 0
       fi
-
-      echo "An unexpected emulator for AVD '${running_avd_name}' appeared on ${serial} while waiting for '${target_avd}'." >&2
-      return 1
     done < <("${adb}" devices | tail -n +2)
 
     sleep 2
