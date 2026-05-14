@@ -56,22 +56,48 @@ The overlay controller is implemented with these interaction rules:
 
 ## Operator setup / verification flow
 
-Use this repo-level flow before the device proof cases in `.codex/docs/plans/2026-05-13-vibetap-proof-plan.md`:
+### Android SDK / emulator prerequisites
+
+Configure Android tooling through either:
+
+- `ANDROID_SDK_ROOT` (preferred), or
+- `ANDROID_HOME`, or
+- `local.properties` with `sdk.dir=...`
+
+Verify an existing emulator setup with `--check`, or provision it with `--create` if it is missing:
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:assembleDebug
+bash scripts/android/setup-emulator.sh --create
+bash scripts/android/setup-emulator.sh --check
 ```
 
-When a device or emulator is attached, run the full Task 9 verification flow:
+### Emulator-first testing
+
+Use this as the default daily loop:
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:assembleDebug :app:connectedDebugAndroidTest
-adb devices
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n com.frank.voiceoverlay/.MainActivity
+bash scripts/android/start-emulator.sh
+bash scripts/android/test-emulator.sh
+bash scripts/android/capture-evidence.sh screenshot settings-home
 ```
 
-After that, execute the proof cases from `.codex/docs/plans/2026-05-13-vibetap-proof-plan.md` on the attached tablet/emulator.
+The emulator workflow runs:
+
+- `:app:testDebugUnitTest`
+- `:app:assembleDebug`
+- `:app:connectedDebugAndroidTest`
+- `adb install -r app/build/outputs/apk/debug/app-debug.apk`
+- `adb shell am start -n com.frank.voiceoverlay/.MainActivity`
+
+Use the checklist in `.codex/docs/plans/2026-05-14-vibetap-emulator-parity-checklist.md` to track emulator evidence and final tablet parity.
+
+### Physical-tablet parity
+
+Use the tablet only for final confirmation of overlay, accessibility, and microphone behavior. This script requires `scrcpy`:
+
+```bash
+bash scripts/android/tablet-parity.sh
+```
 
 ## Known limitations
 
