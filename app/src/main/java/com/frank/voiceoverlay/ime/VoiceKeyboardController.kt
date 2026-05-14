@@ -42,7 +42,7 @@ class VoiceKeyboardController(
             }
         }
 
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+        scope.launch {
             try {
                 val shortcuts = shortcutsProvider()
                     .sortedBy { it.order }
@@ -52,7 +52,7 @@ class VoiceKeyboardController(
                 }
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 setStatus(error.message)
             }
         }
@@ -85,7 +85,7 @@ class VoiceKeyboardController(
                     clearStatus()
                 } catch (error: CancellationException) {
                     throw error
-                } catch (error: Throwable) {
+                } catch (error: Exception) {
                     setStatus(error.message)
                 }
             }
@@ -104,7 +104,7 @@ class VoiceKeyboardController(
             }
         } catch (error: CancellationException) {
             throw error
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
             setStatus(error.message)
         }
     }
@@ -115,7 +115,7 @@ class VoiceKeyboardController(
             clearStatus()
         } catch (error: CancellationException) {
             throw error
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
             setStatus(error.message)
         }
     }

@@ -3,8 +3,12 @@ package com.frank.voiceoverlay.ime
 import com.frank.voiceoverlay.dictation.RecordingState
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 import java.util.concurrent.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -25,13 +29,15 @@ class VoiceKeyboardControllerTest {
             shortcuts = presets,
         )
 
-        val controller = environment.createController(backgroundScope)
+        val bindingScope = createBindingScope(testScheduler)
+        val controller = environment.createController(bindingScope)
         advanceUntilIdle()
 
         assertEquals(KeyboardLayoutMode.DOCKED, controller.uiState.value.layoutMode)
         assertEquals(RecordingState.LISTENING, controller.uiState.value.recordingState)
         assertEquals(listOf("Zero", "One", "Two"), controller.uiState.value.skillBubbles.map { it.label })
         assertEquals(null, controller.uiState.value.statusMessage)
+        bindingScope.cancel()
     }
 
     @Test
@@ -40,16 +46,18 @@ class VoiceKeyboardControllerTest {
             initialRecordingState = RecordingState.IDLE,
             shortcutsFailureMessage = "Shortcuts unavailable",
         )
+        val bindingScope = createBindingScope(testScheduler)
         val controller = environment.createControllerWithoutBinding()
 
-        controller.bind(backgroundScope)
-        controller.bind(backgroundScope)
+        controller.bind(bindingScope)
+        controller.bind(bindingScope)
         advanceUntilIdle()
 
         assertEquals(1, environment.shortcutsProviderCalls)
         assertEquals("Shortcuts unavailable", controller.uiState.value.statusMessage)
         assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.skillBubbles)
         assertEquals(RecordingState.IDLE, controller.uiState.value.recordingState)
+        bindingScope.cancel()
     }
 
     @Test
@@ -122,6 +130,40 @@ class VoiceKeyboardControllerTest {
         assertEquals(null, controller.uiState.value.statusMessage)
     }
 
+
+    @Test
+    fun recoverableHandlers_doNotConvertJvmErrorsIntoStatusMessages() = runTest {
+        val micError = AssertionError("boom")
+        val resetError = AssertionError("reset boom")
+        val commitError = AssertionError("commit boom")
+        val preset = ShortcutPreset(id = "ship", label = "Ship", text = "Ship it", order = 0)
+
+        val micEnvironment = FakeImeEnvironment(startFailure = micError)
+        val micController = micEnvironment.createController(backgroundScope)
+        advanceUntilIdle()
+        val thrownMicError = captureError { micController.onMicTapped() }
+        assertEquals(micError, thrownMicError)
+        assertEquals(null, micController.uiState.value.statusMessage)
+
+        val resetEnvironment = FakeImeEnvironment(resetFailure = resetError)
+        val resetController = resetEnvironment.createController(backgroundScope)
+        resetEnvironment.recordingState.value = RecordingState.ERROR
+        advanceUntilIdle()
+        val thrownResetError = captureError { resetController.onMicTapped() }
+        assertEquals(resetError, thrownResetError)
+        assertEquals(null, resetController.uiState.value.statusMessage)
+
+        val commitEnvironment = FakeImeEnvironment(
+            shortcuts = listOf(preset),
+            commitPhraseFailure = commitError,
+        )
+        val commitController = commitEnvironment.createController(backgroundScope)
+        advanceUntilIdle()
+        val thrownCommitError = captureError { commitController.onSkillBubbleTapped(preset) }
+        assertEquals(commitError, thrownCommitError)
+        assertEquals(null, commitController.uiState.value.statusMessage)
+    }
+
     @Test
     fun onSkillBubbleTapped_commitsPhrase_andReportsMissingField() = runTest {
         val preset = ShortcutPreset(id = "ship", label = "Ship", text = "Ship it", order = 0)
@@ -167,6 +209,9 @@ class VoiceKeyboardControllerTest {
         assertEquals(cancellation, thrown)
         assertEquals(null, cancellationController.uiState.value.statusMessage)
     }
+    private fun createBindingScope(testScheduler: kotlinx.coroutines.test.TestCoroutineScheduler): CoroutineScope =
+        CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+
 }
 
 private suspend fun captureCancellation(block: suspend () -> Unit): CancellationException {
@@ -174,6 +219,15 @@ private suspend fun captureCancellation(block: suspend () -> Unit): Cancellation
         block()
         throw AssertionError("Expected CancellationException")
     } catch (error: CancellationException) {
+        error
+    }
+}
+
+private suspend fun captureError(block: suspend () -> Unit): Error {
+    return try {
+        block()
+        throw AssertionError("Expected Error")
+    } catch (error: Error) {
         error
     }
 }
