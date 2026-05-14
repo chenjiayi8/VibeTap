@@ -1,9 +1,9 @@
 package com.frank.voiceoverlay.ime
 
 interface TextCommitter {
-    fun commitText(text: String)
+    fun commitText(text: String): Boolean
 
-    fun backspace()
+    fun backspace(): Boolean
 
-    fun sendEnter()
+    fun sendEnter(): Boolean
 }
