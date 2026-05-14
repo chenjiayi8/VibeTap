@@ -2,6 +2,7 @@ package com.frank.voiceoverlay.ime
 
 import com.frank.voiceoverlay.dictation.RecordingState
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -31,6 +32,24 @@ class VoiceKeyboardControllerTest {
         assertEquals(RecordingState.LISTENING, controller.uiState.value.recordingState)
         assertEquals(listOf("Zero", "One", "Two"), controller.uiState.value.skillBubbles.map { it.label })
         assertEquals(null, controller.uiState.value.statusMessage)
+    }
+
+    @Test
+    fun bind_ignoresDuplicateInvocation_and_surfacesShortcutLoadingFailure() = runTest {
+        val environment = FakeImeEnvironment(
+            initialRecordingState = RecordingState.IDLE,
+            shortcutsFailureMessage = "Shortcuts unavailable",
+        )
+        val controller = environment.createControllerWithoutBinding(backgroundScope)
+
+        controller.bind(backgroundScope)
+        controller.bind(backgroundScope)
+        advanceUntilIdle()
+
+        assertEquals(1, environment.shortcutsProviderCalls)
+        assertEquals("Shortcuts unavailable", controller.uiState.value.statusMessage)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.skillBubbles)
+        assertEquals(RecordingState.IDLE, controller.uiState.value.recordingState)
     }
 
     @Test
@@ -81,6 +100,29 @@ class VoiceKeyboardControllerTest {
     }
 
     @Test
+    fun onMicTapped_rethrowsCancellationForMicAndResetPaths() = runTest {
+        val startCancellation = CancellationException("stop starting")
+        val resetCancellation = CancellationException("stop resetting")
+        val environment = FakeImeEnvironment(
+            startFailure = startCancellation,
+            resetFailure = resetCancellation,
+        )
+        val controller = environment.createController(backgroundScope)
+        advanceUntilIdle()
+
+        val thrownWhileIdle = captureCancellation { controller.onMicTapped() }
+        assertEquals(startCancellation, thrownWhileIdle)
+        assertEquals(null, controller.uiState.value.statusMessage)
+
+        environment.recordingState.value = RecordingState.ERROR
+        advanceUntilIdle()
+
+        val thrownWhileError = captureCancellation { controller.onMicTapped() }
+        assertEquals(resetCancellation, thrownWhileError)
+        assertEquals(null, controller.uiState.value.statusMessage)
+    }
+
+    @Test
     fun onSkillBubbleTapped_commitsPhrase_andReportsMissingField() = runTest {
         val preset = ShortcutPreset(id = "ship", label = "Ship", text = "Ship it", order = 0)
         val environment = FakeImeEnvironment(shortcuts = listOf(preset))
@@ -100,10 +142,22 @@ class VoiceKeyboardControllerTest {
     }
 }
 
+private suspend fun captureCancellation(block: suspend () -> Unit): CancellationException {
+    return try {
+        block()
+        throw AssertionError("Expected CancellationException")
+    } catch (error: CancellationException) {
+        error
+    }
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 private class FakeImeEnvironment(
     initialRecordingState: RecordingState = RecordingState.IDLE,
     private val shortcuts: List<ShortcutPreset> = emptyList(),
+    private val shortcutsFailureMessage: String? = null,
+    private val startFailure: Throwable? = null,
+    private val resetFailure: Throwable? = null,
 ) {
     val recordingState = MutableStateFlow(initialRecordingState)
     var startCalls = 0
@@ -112,14 +166,26 @@ private class FakeImeEnvironment(
     var commitPhraseCalls = 0
     var commitPhraseResult = true
     var startFailureMessage: String? = null
+    var shortcutsProviderCalls = 0
     val committedPhrases = mutableListOf<String>()
 
     fun createController(scope: kotlinx.coroutines.CoroutineScope): VoiceKeyboardController {
+        return createControllerWithoutBinding(scope).also {
+            it.bind(scope)
+        }
+    }
+
+    fun createControllerWithoutBinding(scope: kotlinx.coroutines.CoroutineScope): VoiceKeyboardController {
         return VoiceKeyboardController(
             recordingState = recordingState,
-            shortcutsProvider = { shortcuts },
+            shortcutsProvider = {
+                shortcutsProviderCalls += 1
+                shortcutsFailureMessage?.let { throw IllegalStateException(it) }
+                shortcuts
+            },
             startRecording = {
                 startCalls += 1
+                startFailure?.let { throw it }
                 startFailureMessage?.let { throw IllegalStateException(it) }
                 recordingState.value = RecordingState.LISTENING
             },
@@ -129,6 +195,7 @@ private class FakeImeEnvironment(
             },
             resetRecording = {
                 resetCalls += 1
+                resetFailure?.let { throw it }
                 recordingState.value = RecordingState.IDLE
             },
             commitPhrase = { phrase ->
@@ -136,8 +203,6 @@ private class FakeImeEnvironment(
                 committedPhrases += phrase
                 commitPhraseResult
             },
-        ).also {
-            it.bind(scope)
-        }
+        )
     }
 }
