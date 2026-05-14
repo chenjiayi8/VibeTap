@@ -55,6 +55,9 @@ class AndroidAudioRecorder(
         try {
             recorder.stop()
             logger.debug("recorder.stop:succeeded:bytes=${file.length()}")
+        } catch (error: Throwable) {
+            logger.error("recorder.stop:failed:path=${file.absolutePath}", error)
+            throw error
         } finally {
             recorder.reset()
             recorder.release()

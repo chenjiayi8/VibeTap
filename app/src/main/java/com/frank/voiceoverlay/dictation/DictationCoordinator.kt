@@ -62,18 +62,47 @@ class DictationCoordinator(
         try {
             audioFile = recorder.stop()
             logger.debug("stopRecording:audioCaptured")
-            val transcript = transcribeFile(audioFile)
-            logger.debug("stopRecording:transcriptionSucceeded")
-            val cleanedText = cleanText(transcript)
-            logger.debug("stopRecording:cleanupSucceeded")
-            insertText(cleanedText)
-            logger.debug("stopRecording:insertionSucceeded")
         } catch (error: Throwable) {
-            when {
-                audioFile == null -> logger.error("stopRecording:audioCaptureFailed", error)
-                pendingError == null -> logger.error("stopRecording:transcriptionFailed", error)
-            }
+            logger.error("stopRecording:audioCaptureFailed", error)
             pendingError = error
+        }
+
+        val transcript = if (pendingError == null && audioFile != null) {
+            try {
+                transcribeFile(audioFile).also {
+                    logger.debug("stopRecording:transcriptionSucceeded")
+                }
+            } catch (error: Throwable) {
+                logger.error("stopRecording:transcriptionFailed", error)
+                pendingError = error
+                null
+            }
+        } else {
+            null
+        }
+
+        val cleanedText = if (pendingError == null && transcript != null) {
+            try {
+                cleanText(transcript).also {
+                    logger.debug("stopRecording:cleanupSucceeded")
+                }
+            } catch (error: Throwable) {
+                logger.error("stopRecording:cleanupFailed", error)
+                pendingError = error
+                null
+            }
+        } else {
+            null
+        }
+
+        if (pendingError == null && cleanedText != null) {
+            try {
+                insertText(cleanedText)
+                logger.debug("stopRecording:insertionSucceeded")
+            } catch (error: Throwable) {
+                logger.error("stopRecording:insertionFailed", error)
+                pendingError = error
+            }
         }
 
         audioFile?.let { file ->

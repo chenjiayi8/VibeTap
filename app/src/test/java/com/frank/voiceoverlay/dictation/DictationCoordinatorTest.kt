@@ -135,6 +135,77 @@ class DictationCoordinatorTest {
     }
 
     @Test
+    fun stopRecording_logsCleanupFailureSeparately() = runTest {
+        val logger = FakeDictationLogger()
+        val coordinator = DictationCoordinator(
+            recorder = FakeAudioRecorder(),
+            transcribe = { "um hello hello" },
+            clean = { throw IllegalStateException("cleanup failed") },
+            insertText = {},
+            deleteFile = { true },
+            logger = logger,
+        )
+
+        coordinator.startRecording()
+
+        val error = org.junit.Assert.assertThrows(IllegalStateException::class.java, ThrowingRunnable {
+            kotlinx.coroutines.runBlocking { coordinator.stopRecording() }
+        })
+
+        assertEquals("cleanup failed", error.message)
+        assertEquals(RecordingState.ERROR, coordinator.state.value)
+        assertEquals(
+            listOf(
+                "startRecording:requested",
+                "startRecording:succeeded",
+                "stopRecording:requested",
+                "stopRecording:audioCaptured",
+                "stopRecording:transcriptionSucceeded",
+                "stopRecording:cleanupFailed:cleanup failed",
+                "stopRecording:fileDeleted",
+                "stopRecording:failed:cleanup failed",
+            ),
+            logger.events,
+        )
+    }
+
+    @Test
+    fun stopRecording_logsInsertionFailureSeparately() = runTest {
+        val logger = FakeDictationLogger()
+        val coordinator = DictationCoordinator(
+            recorder = FakeAudioRecorder(),
+            transcribe = { "um hello hello" },
+            clean = { "hello" },
+            insertText = { throw IllegalStateException("insertion failed") },
+            deleteFile = { true },
+            logger = logger,
+        )
+
+        coordinator.startRecording()
+
+        val error = org.junit.Assert.assertThrows(IllegalStateException::class.java, ThrowingRunnable {
+            kotlinx.coroutines.runBlocking { coordinator.stopRecording() }
+        })
+
+        assertEquals("insertion failed", error.message)
+        assertEquals(RecordingState.ERROR, coordinator.state.value)
+        assertEquals(
+            listOf(
+                "startRecording:requested",
+                "startRecording:succeeded",
+                "stopRecording:requested",
+                "stopRecording:audioCaptured",
+                "stopRecording:transcriptionSucceeded",
+                "stopRecording:cleanupSucceeded",
+                "stopRecording:insertionFailed:insertion failed",
+                "stopRecording:fileDeleted",
+                "stopRecording:failed:insertion failed",
+            ),
+            logger.events,
+        )
+    }
+
+    @Test
     fun stopRecording_treatsFalseDeleteResultAsFailure() = runTest {
         val fakeRecorder = FakeAudioRecorder()
         val coordinator = DictationCoordinator(
