@@ -156,4 +156,8 @@ unlock_device "${TARGET_SERIAL}"
 "${ADB}" -s "${TARGET_SERIAL}" shell settings put global transition_animation_scale 0 >/dev/null 2>&1 || true
 "${ADB}" -s "${TARGET_SERIAL}" shell settings put global animator_duration_scale 0 >/dev/null 2>&1 || true
 
+if [[ -n "${VIBETAP_EMULATOR_SERIAL_FILE:-}" ]]; then
+  printf '%s\n' "${TARGET_SERIAL}" > "${VIBETAP_EMULATOR_SERIAL_FILE}"
+fi
+
 echo "Emulator ready: ${TARGET_SERIAL} (${AVD_NAME})"
