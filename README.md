@@ -64,7 +64,7 @@ Configure Android tooling through either:
 - `ANDROID_HOME`, or
 - `local.properties` with `sdk.dir=...`
 
-Verify an existing emulator setup with `--check`, or provision it with `--create` if it is missing:
+Verify an existing emulator setup with `--check`, or provision it with `--create` if it is missing. By default the script derives the emulator platform, system image, build-tools, and AVD name from the app's current `compileSdk` (currently Android 36), while still allowing overrides through `VIBETAP_ANDROID_PLATFORM`, `VIBETAP_SYSTEM_IMAGE`, `VIBETAP_BUILD_TOOLS`, and `VIBETAP_AVD_NAME`:
 
 ```bash
 bash scripts/android/setup-emulator.sh --create
