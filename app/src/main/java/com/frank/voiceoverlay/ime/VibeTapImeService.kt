@@ -104,7 +104,11 @@ class VibeTapImeService : InputMethodService() {
             recorder = AndroidAudioRecorder(applicationContext),
             transcribeFile = transcriptionClient::transcribe,
             cleanText = cleanupClient::clean,
-            insertText = committer::commitText,
+            insertText = { text ->
+                if (!committer.commitText(text)) {
+                    error(getString(R.string.no_active_input_connection))
+                }
+            },
             deleteFile = File::delete,
         )
     }
