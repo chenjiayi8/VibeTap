@@ -22,7 +22,7 @@ find_avd_block() {
       emitted = 0
       block = ""
     }
-    /^Name: / {
+    /^[[:space:]]*Name: / {
       if (matched && !emitted) {
         print block
         emitted = 1
@@ -30,7 +30,7 @@ find_avd_block() {
       }
       block = $0 ORS
       in_block = 1
-      matched = ($0 == "Name: " target)
+      matched = ($0 ~ "^[[:space:]]*Name: " target "$")
       emitted = 0
       next
     }

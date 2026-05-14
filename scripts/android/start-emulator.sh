@@ -8,6 +8,22 @@ source "${SCRIPT_DIR}/common.sh"
 AVD_NAME="${DEFAULT_AVD_NAME}"
 WIPE_DATA="false"
 
+has_graphical_display() {
+  if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+    return 0
+  fi
+
+  if [[ -z "${DISPLAY:-}" ]]; then
+    return 1
+  fi
+
+  if command -v xdpyinfo >/dev/null 2>&1 && xdpyinfo >/dev/null 2>&1; then
+    return 0
+  fi
+
+  return 1
+}
+
 running_emulator_avd_name() {
   local adb="${1}"
   local serial="${2}"
@@ -133,11 +149,19 @@ if [[ "${MATCHING_STATUS}" -eq 0 ]]; then
   fi
 elif [[ "${MATCHING_STATUS}" -eq 1 ]]; then
   EXTRA_ARGS=()
+  EMULATOR_ENV=()
   if [[ "${WIPE_DATA}" == "true" ]]; then
     EXTRA_ARGS+=("-wipe-data")
   fi
+  if ! has_graphical_display; then
+    echo "No graphical display detected. Starting emulator headlessly."
+    EMULATOR_ENV+=(QT_QPA_PLATFORM=offscreen)
+    EXTRA_ARGS+=("-no-window" "-no-audio" "-gpu" "swiftshader_indirect")
+  elif [[ -n "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+    EMULATOR_ENV+=(QT_QPA_PLATFORM=xcb)
+  fi
 
-  nohup "${EMULATOR}" \
+  nohup env "${EMULATOR_ENV[@]}" "${EMULATOR}" \
     -avd "${AVD_NAME}" \
     -no-snapshot \
     -netdelay none \
