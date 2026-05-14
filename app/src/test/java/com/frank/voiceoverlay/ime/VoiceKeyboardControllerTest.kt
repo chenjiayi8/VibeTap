@@ -41,22 +41,36 @@ class VoiceKeyboardControllerTest {
     }
 
     @Test
-    fun bind_ignoresDuplicateInvocation_and_surfacesShortcutLoadingFailure() = runTest {
+    fun bind_refreshesShortcutsOnSubsequentInvocations_and_surfacesShortcutLoadingFailure() = runTest {
+        val firstPreset = ShortcutPreset(id = "first", label = "First", text = "1", order = 1)
+        val refreshedPreset = ShortcutPreset(id = "refreshed", label = "Refreshed", text = "2", order = 0)
         val environment = FakeImeEnvironment(
             initialRecordingState = RecordingState.IDLE,
-            shortcutsFailureMessage = "Shortcuts unavailable",
+            shortcutsSequence = listOf(
+                listOf(firstPreset),
+                listOf(refreshedPreset),
+            ),
         )
         val bindingScope = createBindingScope(testScheduler)
         val controller = environment.createControllerWithoutBinding()
 
         controller.bind(bindingScope)
+        advanceUntilIdle()
+        assertEquals(listOf("First"), controller.uiState.value.skillBubbles.map { it.label })
+
+        controller.bind(bindingScope)
+        advanceUntilIdle()
+        assertEquals(2, environment.shortcutsProviderCalls)
+        assertEquals(listOf("Refreshed"), controller.uiState.value.skillBubbles.map { it.label })
+        assertEquals(RecordingState.IDLE, controller.uiState.value.recordingState)
+
+        environment.shortcutsFailureMessage = "Shortcuts unavailable"
         controller.bind(bindingScope)
         advanceUntilIdle()
 
-        assertEquals(1, environment.shortcutsProviderCalls)
+        assertEquals(3, environment.shortcutsProviderCalls)
         assertEquals("Shortcuts unavailable", controller.uiState.value.statusMessage)
-        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.skillBubbles)
-        assertEquals(RecordingState.IDLE, controller.uiState.value.recordingState)
+        assertEquals(listOf("Refreshed"), controller.uiState.value.skillBubbles.map { it.label })
         bindingScope.cancel()
     }
 
@@ -236,7 +250,8 @@ private suspend fun captureError(block: suspend () -> Unit): Error {
 private class FakeImeEnvironment(
     initialRecordingState: RecordingState = RecordingState.IDLE,
     private val shortcuts: List<ShortcutPreset> = emptyList(),
-    private val shortcutsFailureMessage: String? = null,
+    private val shortcutsSequence: List<List<ShortcutPreset>>? = null,
+    var shortcutsFailureMessage: String? = null,
     private val startFailure: Throwable? = null,
     private val resetFailure: Throwable? = null,
     private val commitPhraseFailure: Throwable? = null,
@@ -263,7 +278,7 @@ private class FakeImeEnvironment(
             shortcutsProvider = {
                 shortcutsProviderCalls += 1
                 shortcutsFailureMessage?.let { throw IllegalStateException(it) }
-                shortcuts
+                shortcutsSequence?.getOrNull(shortcutsProviderCalls - 1) ?: shortcuts
             },
             startRecording = {
                 startCalls += 1

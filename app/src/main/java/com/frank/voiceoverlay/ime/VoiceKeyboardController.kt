@@ -27,21 +27,28 @@ class VoiceKeyboardController(
     val uiState: StateFlow<ImeUiState> = mutableUiState.asStateFlow()
 
     fun bind(scope: CoroutineScope) {
+        var shouldBindRecordingState = false
         synchronized(bindLock) {
-            if (isBound) {
-                return
+            if (!isBound) {
+                isBound = true
+                shouldBindRecordingState = true
             }
-            isBound = true
         }
 
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            recordingState.collectLatest { state ->
-                mutableUiState.update { current ->
-                    current.copy(recordingState = state)
+        if (shouldBindRecordingState) {
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                recordingState.collectLatest { state ->
+                    mutableUiState.update { current ->
+                        current.copy(recordingState = state)
+                    }
                 }
             }
         }
 
+        refreshShortcuts(scope)
+    }
+
+    private fun refreshShortcuts(scope: CoroutineScope) {
         scope.launch {
             try {
                 val shortcuts = shortcutsProvider()
