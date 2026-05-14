@@ -76,10 +76,11 @@ bash scripts/android/setup-emulator.sh --check
 Use this as the default daily loop:
 
 ```bash
-bash scripts/android/start-emulator.sh
 bash scripts/android/test-emulator.sh
 bash scripts/android/capture-evidence.sh screenshot settings-home
 ```
+
+`bash scripts/android/test-emulator.sh` already starts or reuses the named AVD. Use `bash scripts/android/start-emulator.sh` only when you want to boot/reuse the emulator without running the full verification lane yet.
 
 The emulator workflow runs:
 
@@ -93,7 +94,7 @@ Use the checklist in `.codex/docs/plans/2026-05-14-vibetap-emulator-parity-check
 
 ### Physical-tablet parity
 
-Use the tablet only for final confirmation of overlay, accessibility, and microphone behavior. This script requires `scrcpy`:
+Use the tablet only for final confirmation of overlay, accessibility, and microphone behavior. This script requires `scrcpy`, builds the current debug APK, installs it on the selected physical device, launches `MainActivity`, and then opens the mirrored session:
 
 ```bash
 bash scripts/android/tablet-parity.sh

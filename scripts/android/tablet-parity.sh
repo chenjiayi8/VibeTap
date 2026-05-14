@@ -8,12 +8,8 @@ source "${SCRIPT_DIR}/common.sh"
 CHECKLIST_PATH="${PROJECT_ROOT}/.codex/docs/plans/2026-05-14-vibetap-emulator-parity-checklist.md"
 SERIAL="${1:-${ANDROID_SERIAL:-}}"
 
-command -v scrcpy >/dev/null || {
-  echo "scrcpy is required for tablet parity. Install it and retry." >&2
-  exit 1
-}
-
 ADB=$(adb_bin)
+require_executable "${ADB}"
 mapfile -t PHYSICAL_SERIALS < <("${ADB}" devices | awk '/\tdevice$/ && $1 !~ /^emulator-/ { print $1 }')
 
 if [[ -z "${SERIAL}" ]]; then
@@ -53,6 +49,19 @@ if (( FOUND_PHYSICAL_SERIAL == 0 )); then
   exit 1
 fi
 
+command -v scrcpy >/dev/null || {
+  echo "scrcpy is required for tablet parity. Install it and retry." >&2
+  exit 1
+}
+
+echo "Building current debug APK..."
+gradlew_cmd :app:assembleDebug
+echo "Installing current debug APK on ${SERIAL}..."
+"${ADB}" -s "${SERIAL}" install -r "${PROJECT_ROOT}/app/build/outputs/apk/debug/app-debug.apk"
+unlock_device "${SERIAL}"
+launch_main_activity "${SERIAL}"
+
 echo "Using tablet: ${SERIAL}"
 echo "Checklist: ${CHECKLIST_PATH}"
+echo "Opened the current debug build on ${SERIAL}; continuing with scrcpy for parity checks."
 exec scrcpy --serial "${SERIAL}" --always-on-top --window-title "VibeTap Tablet Parity"
