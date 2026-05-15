@@ -1,6 +1,10 @@
 package com.frank.voiceoverlay.ime
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
@@ -8,6 +12,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.frank.voiceoverlay.dictation.RecordingState
 import com.frank.voiceoverlay.ime.ui.FloatingSkillPanel
@@ -30,6 +35,10 @@ class FloatingSkillPanelTest {
 
     @Test
     fun floatingSkillPanelShowsMicDockAndOnlyThreeSkillBubbles() {
+        var micTapCount by mutableIntStateOf(0)
+        var dockTapCount by mutableIntStateOf(0)
+        var tappedSkillLabel by mutableStateOf<String?>(null)
+
         composeRule.setContent {
             MaterialTheme {
                 FloatingSkillPanel(
@@ -40,9 +49,9 @@ class FloatingSkillPanelTest {
                         preset("extra", "Extra", 3),
                     ),
                     statusMessage = "Listening for your next instruction",
-                    onMicTapped = {},
-                    onDockTapped = {},
-                    onSkillBubbleTapped = {},
+                    onMicTapped = { micTapCount += 1 },
+                    onDockTapped = { dockTapCount += 1 },
+                    onSkillBubbleTapped = { preset -> tappedSkillLabel = preset.label },
                 )
             }
         }
@@ -56,6 +65,16 @@ class FloatingSkillPanelTest {
 
         listOf("floating_mic", "floating_dock", "floating_skill_ship", "floating_skill_review", "floating_skill_proceed").forEach { tag ->
             composeRule.onNodeWithTag(tag).assertHasClickAction()
+        }
+
+        composeRule.onNodeWithTag("floating_mic").performClick()
+        composeRule.onNodeWithTag("floating_dock").performClick()
+        composeRule.onNodeWithTag("floating_skill_ship").performClick()
+
+        composeRule.runOnIdle {
+            check(micTapCount == 1) { "Expected Mic to be clicked once, was $micTapCount" }
+            check(dockTapCount == 1) { "Expected Dock to be clicked once, was $dockTapCount" }
+            check(tappedSkillLabel == "Ship") { "Expected Ship callback, was $tappedSkillLabel" }
         }
     }
 
