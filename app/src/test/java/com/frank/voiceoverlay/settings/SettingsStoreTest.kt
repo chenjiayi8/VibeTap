@@ -66,6 +66,23 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun readOnce_scrubsLegacyOverlayEnabledPreferenceFromPersistence() = runTest {
+        val store = createStore(backgroundScope)
+        store.edit { preferences ->
+            preferences[stringPreferencesKey("openai_api_key")] = "sk-legacy"
+            preferences[booleanPreferencesKey("overlay_enabled")] = true
+        }
+
+        val settingsStore = SettingsStore(store)
+
+        val settings = settingsStore.readOnce()
+        val persistedPreferences = store.data.first()
+
+        assertEquals("sk-legacy", settings.openAiApiKey)
+        assertEquals(null, persistedPreferences[booleanPreferencesKey("overlay_enabled")])
+    }
+
+    @Test
     fun readOnce_usesDefaultPresetsWhenPresetJsonMissing() = runTest {
         val settingsStore = SettingsStore(createStore(backgroundScope))
 

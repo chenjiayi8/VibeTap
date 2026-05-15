@@ -28,8 +28,8 @@ class SettingsStore(
         }
     }
 
-    suspend fun readOnce(): AppSettings =
-        dataStore.data
+    suspend fun readOnce(): AppSettings {
+        val preferences = dataStore.data
             .catch { error ->
                 if (error is IOException) {
                     emit(emptyPreferences())
@@ -38,11 +38,21 @@ class SettingsStore(
                 }
             }
             .first()
-            .toAppSettings()
+        scrubLegacyPreferencesIfNeeded(preferences)
+        return preferences.toAppSettings()
+    }
 
     private suspend fun writeSettings(settings: AppSettings) {
         dataStore.edit { preferences ->
             preferences.writeSettings(settings)
+        }
+    }
+
+    private suspend fun scrubLegacyPreferencesIfNeeded(preferences: Preferences) {
+        if (preferences[OVERLAY_ENABLED] != null) {
+            dataStore.edit { mutablePreferences ->
+                mutablePreferences.remove(OVERLAY_ENABLED)
+            }
         }
     }
 
