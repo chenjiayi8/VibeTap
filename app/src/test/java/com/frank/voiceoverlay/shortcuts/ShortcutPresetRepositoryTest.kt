@@ -54,7 +54,6 @@ class ShortcutPresetRepositoryTest {
         settingsStore.save(
             AppSettings(
                 openAiApiKey = "sk-test",
-                overlayEnabled = true,
                 presets = ShortcutPreset.defaultPresets(),
             ),
         )
@@ -71,7 +70,6 @@ class ShortcutPresetRepositoryTest {
         assertEquals(
             AppSettings(
                 openAiApiKey = "sk-test",
-                overlayEnabled = true,
                 presets = unsortedPresets.sortedBy(ShortcutPreset::order),
             ),
             settingsStore.readOnce(),

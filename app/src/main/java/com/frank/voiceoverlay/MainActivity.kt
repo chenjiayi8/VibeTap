@@ -3,16 +3,15 @@ package com.frank.voiceoverlay
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
+import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.lifecycleScope
-import com.frank.voiceoverlay.overlay.OverlayBubbleService
-import com.frank.voiceoverlay.overlay.OverlayBubbleServiceGate
 import com.frank.voiceoverlay.permissions.PermissionGate
 import com.frank.voiceoverlay.settings.SettingsScreen
 import com.frank.voiceoverlay.settings.SettingsStore
@@ -29,10 +28,13 @@ class MainActivity : ComponentActivity() {
     private val settingsViewModel by lazy {
         SettingsViewModel(
             settingsStore = settingsStore,
-            hasOverlayPermission = permissionGate::hasOverlayPermission,
             hasMicrophonePermission = permissionGate::hasMicrophonePermission,
-            openOverlaySettings = permissionGate::openOverlaySettings,
-            openAccessibilitySettings = permissionGate::openAccessibilitySettings,
+            openKeyboardSettings = {
+                startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+            },
+            showInputMethodPicker = {
+                getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
+            },
             requestMicrophonePermission = {
                 ActivityCompat.requestPermissions(
                     this,
@@ -43,32 +45,18 @@ class MainActivity : ComponentActivity() {
             scope = lifecycleScope,
         )
     }
-    private val overlayBubbleServiceGate by lazy {
-        OverlayBubbleServiceGate(
-            startService = {
-                startService(Intent(this, OverlayBubbleService::class.java))
-            },
-            stopService = {
-                stopService(Intent(this, OverlayBubbleService::class.java))
-            },
-        )
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val uiState by settingsViewModel.uiState.collectAsState()
-            LaunchedEffect(uiState.overlayEnabled) {
-                overlayBubbleServiceGate.sync(uiState.overlayEnabled)
-            }
             MaterialTheme {
                 SettingsScreen(
                     uiState = uiState,
                     onApiKeyChanged = settingsViewModel::onApiKeyChanged,
-                    onOverlayEnabledChanged = settingsViewModel::onOverlayEnabledChanged,
                     onPresetChanged = settingsViewModel::onPresetChanged,
-                    onOpenOverlaySettings = settingsViewModel::onOpenOverlaySettings,
-                    onOpenAccessibilitySettings = settingsViewModel::onOpenAccessibilitySettings,
+                    onOpenKeyboardSettings = settingsViewModel::onOpenKeyboardSettings,
+                    onShowInputMethodPicker = settingsViewModel::onShowInputMethodPicker,
                     onRequestMicrophonePermission = settingsViewModel::onRequestMicrophonePermission,
                 )
             }

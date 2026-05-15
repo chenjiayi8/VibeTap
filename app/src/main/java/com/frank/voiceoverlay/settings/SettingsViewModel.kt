@@ -9,18 +9,15 @@ import kotlinx.coroutines.launch
 
 data class SettingsUiState(
     val openAiApiKey: String = "",
-    val overlayEnabled: Boolean = false,
-    val overlayPermissionGranted: Boolean = false,
     val microphonePermissionGranted: Boolean = false,
     val presets: List<ShortcutPreset> = emptyList(),
 )
 
 class SettingsViewModel(
     private val settingsStore: SettingsStore,
-    private val hasOverlayPermission: () -> Boolean,
     private val hasMicrophonePermission: () -> Boolean,
-    private val openOverlaySettings: () -> Unit,
-    private val openAccessibilitySettings: () -> Unit,
+    private val openKeyboardSettings: () -> Unit,
+    private val showInputMethodPicker: () -> Unit,
     private val requestMicrophonePermission: () -> Unit,
     private val scope: CoroutineScope,
 ) {
@@ -44,25 +41,12 @@ class SettingsViewModel(
         }
     }
 
-    fun onOverlayEnabledChanged(enabled: Boolean) {
-        scope.launch {
-            if (enabled && !hasOverlayPermission()) {
-                reloadSettings()
-                return@launch
-            }
-
-            settingsStore.update { it.copy(overlayEnabled = enabled) }
-            reloadSettings()
-        }
+    fun onOpenKeyboardSettings() {
+        openKeyboardSettings()
     }
 
-    fun onOpenOverlaySettings() {
-        openOverlaySettings()
-        refreshPermissionState()
-    }
-
-    fun onOpenAccessibilitySettings() {
-        openAccessibilitySettings()
+    fun onShowInputMethodPicker() {
+        showInputMethodPicker()
     }
 
     fun onRequestMicrophonePermission() {
@@ -83,11 +67,9 @@ class SettingsViewModel(
     }
 
     internal suspend fun reloadSettings() {
-        val overlayPermissionGranted = hasOverlayPermission()
         val microphonePermissionGranted = hasMicrophonePermission()
-        val normalizedSettings = settingsStore.readOnce().normalizedForPermission(overlayPermissionGranted)
-        mutableUiState.value = normalizedSettings.toUiState(
-            overlayPermissionGranted = overlayPermissionGranted,
+        val settings = settingsStore.readOnce()
+        mutableUiState.value = settings.toUiState(
             microphonePermissionGranted = microphonePermissionGranted,
         )
     }
@@ -112,27 +94,10 @@ class SettingsViewModel(
         return true
     }
 
-    private suspend fun AppSettings.normalizedForPermission(
-        overlayPermissionGranted: Boolean,
-    ): AppSettings {
-        val normalizedSettings = if (overlayPermissionGranted || !overlayEnabled) {
-            this
-        } else {
-            copy(overlayEnabled = false)
-        }
-        if (normalizedSettings != this) {
-            settingsStore.save(normalizedSettings)
-        }
-        return normalizedSettings
-    }
-
     private fun AppSettings.toUiState(
-        overlayPermissionGranted: Boolean,
         microphonePermissionGranted: Boolean,
     ) = SettingsUiState(
         openAiApiKey = openAiApiKey,
-        overlayEnabled = overlayEnabled,
-        overlayPermissionGranted = overlayPermissionGranted,
         microphonePermissionGranted = microphonePermissionGranted,
         presets = presets,
     )
