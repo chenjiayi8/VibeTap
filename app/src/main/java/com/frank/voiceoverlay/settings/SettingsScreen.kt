@@ -13,7 +13,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,8 +27,8 @@ import androidx.compose.ui.unit.dp
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 
 object SettingsScreenTestTags {
+    const val KeyboardSetupSection = "settings_keyboard_setup_section"
     const val ApiKeySection = "settings_api_key_section"
-    const val OverlayBubbleLabel = "settings_overlay_bubble_label"
     const val ShortcutPresetsSection = "settings_shortcut_presets_section"
 }
 
@@ -37,10 +36,9 @@ object SettingsScreenTestTags {
 fun SettingsScreen(
     uiState: SettingsUiState,
     onApiKeyChanged: (String) -> Unit,
-    onOverlayEnabledChanged: (Boolean) -> Unit,
     onPresetChanged: (presetId: String, label: String, text: String) -> Unit,
-    onOpenOverlaySettings: () -> Unit,
-    onOpenAccessibilitySettings: () -> Unit,
+    onOpenKeyboardSettings: () -> Unit,
+    onShowInputMethodPicker: () -> Unit,
     onRequestMicrophonePermission: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -53,10 +51,29 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "Voice Overlay Settings",
+                text = "VibeTap Keyboard Settings",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
+
+            SettingsSection(
+                title = "Keyboard setup",
+                modifier = Modifier.testTag(SettingsScreenTestTags.KeyboardSetupSection),
+            ) {
+                Text(
+                    text = "Enable the VibeTap keyboard in Android settings, then choose it as your active keyboard before dictating.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = onOpenKeyboardSettings) {
+                        Text("Open keyboard settings")
+                    }
+                    Button(onClick = onShowInputMethodPicker) {
+                        Text("Choose active keyboard")
+                    }
+                }
+            }
 
             SettingsSection(
                 title = "OpenAI API Key",
@@ -71,53 +88,13 @@ fun SettingsScreen(
                 )
             }
 
-            SettingsSection(title = "Overlay") {
+            SettingsSection(title = "Microphone access") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Enable overlay bubble",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.testTag(SettingsScreenTestTags.OverlayBubbleLabel),
-                        )
-                        Text(
-                            text = if (uiState.overlayPermissionGranted) {
-                                "Overlay permission granted."
-                            } else {
-                                "Grant overlay permission before enabling the bubble."
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(
-                        checked = uiState.overlayEnabled,
-                        onCheckedChange = onOverlayEnabledChanged,
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = onOpenOverlaySettings) {
-                        Text("Open overlay settings")
-                    }
-                    Button(onClick = onOpenAccessibilitySettings) {
-                        Text("Open accessibility settings")
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Microphone access",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
                         Text(
                             text = if (uiState.microphonePermissionGranted) {
                                 "Microphone permission granted."
@@ -141,7 +118,7 @@ fun SettingsScreen(
             }
 
             SettingsSection(
-                title = "Shortcut Presets",
+                title = "Saved phrase skills",
                 modifier = Modifier.testTag(SettingsScreenTestTags.ShortcutPresetsSection),
             ) {
                 uiState.presets.forEach { preset ->

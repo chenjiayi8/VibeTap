@@ -3,7 +3,6 @@ package com.frank.voiceoverlay.settings
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -48,13 +47,11 @@ class SettingsStore(
 
     private fun Preferences.toAppSettings(): AppSettings = AppSettings(
         openAiApiKey = this[OPENAI_API_KEY].orEmpty(),
-        overlayEnabled = this[OVERLAY_ENABLED] ?: false,
         presets = decodePresets(this[SHORTCUT_PRESETS]),
     )
 
     private fun MutablePreferences.writeSettings(settings: AppSettings) {
         this[OPENAI_API_KEY] = settings.openAiApiKey
-        this[OVERLAY_ENABLED] = settings.overlayEnabled
         this[SHORTCUT_PRESETS] = json.encodeToString(settings.presets)
     }
 
@@ -66,7 +63,6 @@ class SettingsStore(
 
     private companion object {
         val OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
-        val OVERLAY_ENABLED = booleanPreferencesKey("overlay_enabled")
         val SHORTCUT_PRESETS = stringPreferencesKey("shortcut_presets")
     }
 }
