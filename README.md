@@ -1,29 +1,28 @@
 # VibeTap
 
-VibeTap is an Android overlay dictation app for personal use. It is designed to stay above other apps as a floating bubble, capture short microphone recordings, send them to OpenAI Whisper for transcription, run a lightweight cleanup pass with `gpt-5-nano`, and insert the cleaned text into the currently focused editable field through an Android Accessibility service.
+VibeTap is an Android IME-first voice keyboard for personal use. It runs as a custom keyboard, records short microphone clips, sends them to OpenAI Whisper for transcription, runs a lightweight cleanup pass with `gpt-5-nano`, and commits the cleaned text into the active editor through the current `InputConnection`.
 
 ## What this app does
 
-- Shows a settings screen for API-key entry, overlay permission setup, accessibility setup, and shortcut editing.
+- Shows a settings screen for keyboard enablement, keyboard picker access, OpenAI API-key entry, microphone permission, and saved phrase editing.
 - Stores a user-supplied OpenAI API key locally on the device.
-- Defines an overlay bubble service that is intended to support:
-  - single-tap start / single-tap stop dictation
-  - processing feedback while transcription/cleanup is running
-  - double-tap radial shortcuts for predefined phrases
-- Uses the Accessibility service to insert either cleaned dictation text or a shortcut phrase into the currently focused editable field.
+- Presents two keyboard layouts:
+  - a **docked keyboard** for normal typing with dictation controls
+  - a **floating compact panel** for voice-first use with quick access to saved phrase skills
+- Uses `InputConnection` commits for both cleaned dictation text and saved phrase insertion.
 
 ## Required Android permissions and capabilities
 
 The current build depends on these Android capabilities:
 
-- **Display over other apps** (`SYSTEM_ALERT_WINDOW`) — required for the floating overlay bubble.
-- **Accessibility service enablement** — required so VibeTap can find the focused editable field and replace its text.
+- **Keyboard enablement** — required so Android can load VibeTap as an input method.
+- **Active keyboard selection** — required so VibeTap becomes the keyboard for the current text field.
 - **Microphone access** (`RECORD_AUDIO`) — required for dictation recording.
 - **Network access** (`INTERNET`) — required for OpenAI transcription and cleanup requests.
 
 Notes:
-- Overlay permission is opened from the settings screen.
-- Accessibility settings are opened from the settings screen.
+- Keyboard settings can be opened from the settings screen.
+- The input-method picker can be opened from the settings screen.
 - Microphone access can be requested from the settings screen before starting dictation.
 
 ## How to add the OpenAI API key
@@ -35,24 +34,24 @@ Notes:
 
 Security note: this is a personal-use prototype. The key is stored on-device and used directly by the client app. That is acceptable only for private testing and is not suitable for store distribution.
 
-## Recording and shortcuts behavior
+## Keyboard behavior
 
-### Recording
+### Dictation
 
-The overlay controller is implemented with these interaction rules:
+The keyboard runtime is implemented with these interaction rules:
 
-- **Single tap when idle**: start recording, but only if an OpenAI API key is present.
-- **Single tap while listening**: stop recording and begin processing.
+- **Mic tap when idle**: start recording, but only if an OpenAI API key is present.
+- **Mic tap while listening**: stop recording and begin processing.
 - **While processing**: another tap does not start a new recording; the UI reports that the previous recording is still processing.
 - **If recording reaches an error state**: a tap resets the controller back to idle.
-- **If no API key is configured**: recording is blocked and the bubble shows `Add an OpenAI API key in settings before recording.`
+- **If no API key is configured**: recording is blocked and the keyboard shows `Add an OpenAI API key in settings before dictation.`
+- **If no editor is active**: dictated text and saved phrases fail with an InputConnection-based insertion message.
 
-### Shortcuts
+### Layouts and saved phrase skills
 
-- **Double tap** expands the radial shortcut menu.
-- Tapping a shortcut inserts that preset's text into the currently focused editable field.
-- If insertion fails, the UI reports that accessibility and a focused text field are required.
-- Shortcuts are editable from the settings screen and are persisted locally.
+- **Docked keyboard** keeps dictation controls alongside normal typing actions.
+- **Floating compact panel** gives a smaller voice-first surface when the full keyboard is not needed.
+- **Saved phrase skills** are editable from the settings screen and are committed through the active `InputConnection`.
 
 ## Operator setup / verification flow
 
@@ -94,7 +93,7 @@ Use the checklist in `.codex/docs/plans/2026-05-14-vibetap-emulator-parity-check
 
 ### Physical-tablet parity
 
-Use the tablet only for final confirmation of overlay, accessibility, and microphone behavior. This script requires `scrcpy`, builds the current debug APK, installs it on the selected physical device, launches `MainActivity`, and then opens the mirrored session:
+Use the tablet only for final confirmation of keyboard enablement, microphone behavior, dictation insertion, and floating-panel ergonomics. This script requires `scrcpy`, builds the current debug APK, installs it on the selected physical device, launches `MainActivity`, and then opens the mirrored session:
 
 ```bash
 bash scripts/android/tablet-parity.sh
@@ -103,7 +102,7 @@ bash scripts/android/tablet-parity.sh
 ## Known limitations
 
 - The connected Android test, install, launch, and proof-plan steps require a real device or emulator; they cannot pass in a device-less session.
-- The README documents the intended overlay dictation interactions, but the final on-device proof is still required to confirm the complete overlay lifecycle on hardware.
+- The README documents the intended IME-first keyboard interactions, but final on-device proof is still required to confirm keyboard switching and floating-panel ergonomics on hardware.
 - OpenAI API usage is direct from the client and is only acceptable for personal testing.
 - Release signing and store-distribution hardening are out of scope for this MVP.
 
