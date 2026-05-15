@@ -17,14 +17,12 @@ class SettingsScreenTest {
     val composeRule = createAndroidComposeRule<TestComposeActivity>()
 
     @Test
-    fun screenShowsApiKeyAndShortcutSections() {
+    fun screenShowsKeyboardSetupApiKeyAndPhraseSkillsSections() {
         composeRule.setContent {
             MaterialTheme {
                 SettingsScreen(
                     uiState = SettingsUiState(
                         openAiApiKey = "",
-                        overlayEnabled = false,
-                        overlayPermissionGranted = false,
                         microphonePermissionGranted = false,
                         presets = listOf(
                             ShortcutPreset(
@@ -36,17 +34,21 @@ class SettingsScreenTest {
                         ),
                     ),
                     onApiKeyChanged = {},
-                    onOverlayEnabledChanged = {},
                     onPresetChanged = { _, _, _ -> },
-                    onOpenOverlaySettings = {},
-                    onOpenAccessibilitySettings = {},
+                    onOpenKeyboardSettings = {},
+                    onShowInputMethodPicker = {},
                     onRequestMicrophonePermission = {},
                 )
             }
         }
 
+        composeRule.onNodeWithText("VibeTap Keyboard Settings").assertIsDisplayed()
+        composeRule.onNodeWithText("Keyboard setup").assertIsDisplayed()
+        composeRule.onNodeWithText("Open keyboard settings").assertIsDisplayed()
+        composeRule.onNodeWithText("Choose active keyboard").assertIsDisplayed()
         composeRule.onNodeWithText("OpenAI API Key").assertIsDisplayed()
-        composeRule.onNodeWithText("Shortcut Presets").assertIsDisplayed()
+        composeRule.onNodeWithText("Microphone access").assertIsDisplayed()
+        composeRule.onNodeWithText("Saved phrase skills").assertIsDisplayed()
         composeRule.onNodeWithText("Grant microphone access").assertIsDisplayed()
         composeRule.onNodeWithText("Save preset").assertIsDisplayed()
     }
