@@ -13,6 +13,10 @@ import com.frank.voiceoverlay.dictation.RecordingState
 import com.frank.voiceoverlay.ime.ui.DockedKeyboardView
 import com.frank.voiceoverlay.ime.ui.VibeTapImeRoot
 import com.frank.voiceoverlay.testing.TestComposeActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -69,8 +73,10 @@ class DockedKeyboardViewTest {
     }
 
     @Test
-    fun imeRootFloatingPlaceholderCanToggleBackToDocked() {
+    fun imeRootFloatingModeCanToggleBackToDocked() {
         val controller = createController()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        controller.bind(scope)
 
         composeRule.setContent {
             MaterialTheme {
@@ -87,14 +93,17 @@ class DockedKeyboardViewTest {
         composeRule.runOnIdle {
             controller.onLayoutToggle()
         }
-        composeRule.onNodeWithText("Floating mode coming soon").assertIsDisplayed()
+        composeRule.onNodeWithText("Mic").assertIsDisplayed()
         composeRule.onNodeWithText("Dock").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Float").assertCountEquals(0)
 
         composeRule.runOnIdle {
             controller.onLayoutToggle()
         }
-        composeRule.onAllNodesWithText("Floating mode coming soon").assertCountEquals(0)
         composeRule.onNodeWithText("Float").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Dock").assertCountEquals(0)
+
+        scope.cancel()
     }
 
     private fun createController(): VoiceKeyboardController = VoiceKeyboardController(

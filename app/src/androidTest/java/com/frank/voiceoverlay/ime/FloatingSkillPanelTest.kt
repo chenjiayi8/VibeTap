@@ -14,6 +14,10 @@ import com.frank.voiceoverlay.ime.ui.FloatingSkillPanel
 import com.frank.voiceoverlay.ime.ui.VibeTapImeRoot
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 import com.frank.voiceoverlay.testing.TestComposeActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -65,6 +69,9 @@ class FloatingSkillPanelTest {
             ),
         )
 
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        controller.bind(scope)
+
         composeRule.setContent {
             MaterialTheme {
                 VibeTapImeRoot(
@@ -77,6 +84,9 @@ class FloatingSkillPanelTest {
             }
         }
 
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            controller.uiState.value.skillBubbles.size == 3
+        }
         composeRule.runOnIdle {
             controller.onLayoutToggle()
         }
@@ -88,6 +98,8 @@ class FloatingSkillPanelTest {
         composeRule.onAllNodesWithText("Q").assertCountEquals(0)
         composeRule.onAllNodesWithText("Space").assertCountEquals(0)
         composeRule.onAllNodesWithText("Mic").assertCountEquals(1)
+
+        scope.cancel()
     }
 
     private fun createController(

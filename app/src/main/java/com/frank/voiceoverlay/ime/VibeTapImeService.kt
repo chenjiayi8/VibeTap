@@ -43,6 +43,7 @@ class VibeTapImeService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         controller.bind(serviceScope)
+        val commitText: (String) -> Boolean = { text -> committer.commitText(text) }
 
         return ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
@@ -52,8 +53,8 @@ class VibeTapImeService : InputMethodService() {
                         controller = controller,
                         onBackspace = { committer.backspace() },
                         onEnter = { committer.sendEnter() },
-                        onCommitLetter = { letter -> committer.commitText(letter) },
-                        onCommitPhrase = { phrase -> committer.commitText(phrase) },
+                        onCommitLetter = commitText,
+                        onCommitPhrase = commitText,
                     )
                 }
             }
