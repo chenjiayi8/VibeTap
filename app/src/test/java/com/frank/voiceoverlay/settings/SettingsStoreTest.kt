@@ -8,9 +8,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -35,18 +35,34 @@ class SettingsStoreTest {
     }
 
     @Test
-    fun readOnce_ignoresLegacyOverlayEnabledPreference() = runTest {
+    fun save_scrubsLegacyOverlayEnabledPreferenceFromPersistence() = runTest {
         val store = createStore(backgroundScope)
         store.edit { preferences ->
-            preferences[stringPreferencesKey("openai_api_key")] = "sk-test"
             preferences[booleanPreferencesKey("overlay_enabled")] = true
         }
 
         val settingsStore = SettingsStore(store)
+        settingsStore.save(AppSettings(openAiApiKey = "sk-test"))
 
-        val settings = settingsStore.readOnce()
-        assertEquals("sk-test", settings.openAiApiKey)
-        assertFalse(settings.presets.isEmpty())
+        val persistedPreferences = store.data.first()
+        assertEquals("sk-test", settingsStore.readOnce().openAiApiKey)
+        assertEquals(null, persistedPreferences[booleanPreferencesKey("overlay_enabled")])
+    }
+
+    @Test
+    fun update_scrubsLegacyOverlayEnabledPreferenceFromPersistence() = runTest {
+        val store = createStore(backgroundScope)
+        store.edit { preferences ->
+            preferences[stringPreferencesKey("openai_api_key")] = "sk-before"
+            preferences[booleanPreferencesKey("overlay_enabled")] = true
+        }
+
+        val settingsStore = SettingsStore(store)
+        settingsStore.update { it.copy(openAiApiKey = "sk-after") }
+
+        val persistedPreferences = store.data.first()
+        assertEquals("sk-after", settingsStore.readOnce().openAiApiKey)
+        assertEquals(null, persistedPreferences[booleanPreferencesKey("overlay_enabled")])
     }
 
     @Test
