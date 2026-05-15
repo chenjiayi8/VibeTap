@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,40 +27,52 @@ fun VibeTapImeRoot(
     val uiState by controller.uiState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        when (uiState.layoutMode) {
-            KeyboardLayoutMode.DOCKED -> DockedKeyboardView(
-                onMicTapped = {
-                    coroutineScope.launch {
-                        controller.onMicTapped()
-                    }
-                },
-                onLayoutToggle = controller::onLayoutToggle,
-                onBackspace = onBackspace,
-                onEnter = onEnter,
-                onCommitLetter = onCommitLetter,
-                onCommitPhrase = onCommitPhrase,
-            )
+    when (uiState.layoutMode) {
+        KeyboardLayoutMode.DOCKED -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DockedKeyboardView(
+                    onMicTapped = {
+                        coroutineScope.launch {
+                            controller.onMicTapped()
+                        }
+                    },
+                    onLayoutToggle = controller::onLayoutToggle,
+                    onBackspace = onBackspace,
+                    onEnter = onEnter,
+                    onCommitLetter = onCommitLetter,
+                    onCommitPhrase = onCommitPhrase,
+                )
 
-            KeyboardLayoutMode.FLOATING -> {
-                Text(text = "Floating mode coming soon")
-                Button(onClick = controller::onLayoutToggle) {
-                    Text(text = "Dock")
+                uiState.statusMessage?.let { message ->
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
         }
 
-        uiState.statusMessage?.let { message ->
-            Text(
-                text = message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+        KeyboardLayoutMode.FLOATING -> FloatingSkillPanel(
+            skillBubbles = uiState.skillBubbles,
+            statusMessage = uiState.statusMessage,
+            onMicTapped = {
+                coroutineScope.launch {
+                    controller.onMicTapped()
+                }
+            },
+            onDockTapped = controller::onLayoutToggle,
+            onSkillBubbleTapped = { preset ->
+                coroutineScope.launch {
+                    controller.onSkillBubbleTapped(preset)
+                }
+            },
+            modifier = Modifier.padding(12.dp),
+        )
     }
 }
