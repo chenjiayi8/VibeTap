@@ -65,11 +65,17 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = onOpenKeyboardSettings) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = onOpenKeyboardSettings,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         Text("Open keyboard settings")
                     }
-                    Button(onClick = onShowInputMethodPicker) {
+                    Button(
+                        onClick = onShowInputMethodPicker,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         Text("Choose active keyboard")
                     }
                 }
