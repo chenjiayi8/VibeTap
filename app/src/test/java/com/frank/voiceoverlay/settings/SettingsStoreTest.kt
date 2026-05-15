@@ -3,12 +3,14 @@ package com.frank.voiceoverlay.settings
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -24,13 +26,27 @@ class SettingsStoreTest {
         val settingsStore = SettingsStore(store)
         val input = AppSettings(
             openAiApiKey = "sk-test",
-            overlayEnabled = true,
             presets = listOf(ShortcutPreset("ship-pr", "Ship-PR", "Good, please proceed to use \$ship-pr", 0)),
         )
 
         settingsStore.save(input)
 
         assertEquals(input, settingsStore.readOnce())
+    }
+
+    @Test
+    fun readOnce_ignoresLegacyOverlayEnabledPreference() = runTest {
+        val store = createStore(backgroundScope)
+        store.edit { preferences ->
+            preferences[stringPreferencesKey("openai_api_key")] = "sk-test"
+            preferences[booleanPreferencesKey("overlay_enabled")] = true
+        }
+
+        val settingsStore = SettingsStore(store)
+
+        val settings = settingsStore.readOnce()
+        assertEquals("sk-test", settings.openAiApiKey)
+        assertFalse(settings.presets.isEmpty())
     }
 
     @Test

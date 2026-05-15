@@ -19,29 +19,65 @@ class SettingsViewModelTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
-    fun reloadSettings_clearsPersistedOverlayFlagWhenPermissionMissing() = runTest {
+    fun reloadSettings_reportsKeyboardFirstState() = runTest {
         val settingsStore = SettingsStore(createStore(backgroundScope))
+        val initialPreset = ShortcutPreset.defaultPresets().first()
         settingsStore.save(
             AppSettings(
                 openAiApiKey = "sk-test",
-                overlayEnabled = true,
-                presets = ShortcutPreset.defaultPresets(),
+                presets = listOf(initialPreset),
             ),
         )
         val viewModel = SettingsViewModel(
             settingsStore = settingsStore,
-            hasOverlayPermission = { false },
             hasMicrophonePermission = { false },
-            openOverlaySettings = {},
-            openAccessibilitySettings = {},
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
             requestMicrophonePermission = {},
             scope = this,
         )
 
         viewModel.reloadSettings()
 
-        assertFalse(viewModel.uiState.value.overlayEnabled)
-        assertFalse(settingsStore.readOnce().overlayEnabled)
+        assertEquals("sk-test", viewModel.uiState.value.openAiApiKey)
+        assertFalse(viewModel.uiState.value.microphonePermissionGranted)
+        assertEquals(listOf(initialPreset), viewModel.uiState.value.presets)
+    }
+
+    @Test
+    fun onOpenKeyboardSettings_invokesCallback() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+        var opened = 0
+        val viewModel = SettingsViewModel(
+            settingsStore = settingsStore,
+            hasMicrophonePermission = { true },
+            openKeyboardSettings = { opened += 1 },
+            showInputMethodPicker = {},
+            requestMicrophonePermission = {},
+            scope = this,
+        )
+
+        viewModel.onOpenKeyboardSettings()
+
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun onShowInputMethodPicker_invokesCallback() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+        var shown = 0
+        val viewModel = SettingsViewModel(
+            settingsStore = settingsStore,
+            hasMicrophonePermission = { true },
+            openKeyboardSettings = {},
+            showInputMethodPicker = { shown += 1 },
+            requestMicrophonePermission = {},
+            scope = this,
+        )
+
+        viewModel.onShowInputMethodPicker()
+
+        assertEquals(1, shown)
     }
 
     @Test
@@ -56,17 +92,15 @@ class SettingsViewModelTest {
         settingsStore.save(
             AppSettings(
                 openAiApiKey = "sk-test",
-                overlayEnabled = false,
                 presets = listOf(initialPreset),
             ),
         )
 
         val viewModel = SettingsViewModel(
             settingsStore = settingsStore,
-            hasOverlayPermission = { true },
             hasMicrophonePermission = { true },
-            openOverlaySettings = {},
-            openAccessibilitySettings = {},
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
             requestMicrophonePermission = {},
             scope = this,
         )
@@ -81,10 +115,9 @@ class SettingsViewModelTest {
 
         val reloadedViewModel = SettingsViewModel(
             settingsStore = settingsStore,
-            hasOverlayPermission = { true },
             hasMicrophonePermission = { true },
-            openOverlaySettings = {},
-            openAccessibilitySettings = {},
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
             requestMicrophonePermission = {},
             scope = this,
         )
@@ -103,10 +136,9 @@ class SettingsViewModelTest {
         settingsStore.save(AppSettings(presets = listOf(initialPreset)))
         val viewModel = SettingsViewModel(
             settingsStore = settingsStore,
-            hasOverlayPermission = { true },
             hasMicrophonePermission = { true },
-            openOverlaySettings = {},
-            openAccessibilitySettings = {},
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
             requestMicrophonePermission = {},
             scope = this,
         )
@@ -126,10 +158,9 @@ class SettingsViewModelTest {
         val settingsStore = SettingsStore(createStore(backgroundScope))
         val viewModel = SettingsViewModel(
             settingsStore = settingsStore,
-            hasOverlayPermission = { true },
             hasMicrophonePermission = { false },
-            openOverlaySettings = {},
-            openAccessibilitySettings = {},
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
             requestMicrophonePermission = {},
             scope = this,
         )
@@ -145,10 +176,9 @@ class SettingsViewModelTest {
         var requested = 0
         val viewModel = SettingsViewModel(
             settingsStore = settingsStore,
-            hasOverlayPermission = { true },
             hasMicrophonePermission = { false },
-            openOverlaySettings = {},
-            openAccessibilitySettings = {},
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
             requestMicrophonePermission = { requested += 1 },
             scope = this,
         )

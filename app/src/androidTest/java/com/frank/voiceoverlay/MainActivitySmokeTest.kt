@@ -16,8 +16,8 @@ class MainActivitySmokeTest {
 
     @Test
     fun appLaunchShowsPrimarySettingsSections() {
+        composeRule.onNodeWithTag(SettingsScreenTestTags.KeyboardSetupSection).assertIsDisplayed()
         composeRule.onNodeWithTag(SettingsScreenTestTags.ApiKeySection).assertIsDisplayed()
-        composeRule.onNodeWithTag(SettingsScreenTestTags.OverlayBubbleLabel).assertIsDisplayed()
         composeRule.onNodeWithTag(SettingsScreenTestTags.ShortcutPresetsSection).assertIsDisplayed()
     }
 }
