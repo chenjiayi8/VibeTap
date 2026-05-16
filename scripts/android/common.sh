@@ -49,6 +49,7 @@ require_python3() {
 
 load_env_file() {
   local env_file="${1}"
+  local parsed_env_file
   local key value
 
   [[ -n "${env_file}" ]] || {
@@ -63,10 +64,8 @@ load_env_file() {
 
   require_python3 || exit $?
 
-  while IFS= read -r -d '' key && IFS= read -r -d '' value; do
-    printf -v "${key}" '%s' "${value}"
-    export "${key}"
-  done < <(python3 - <<'PY' "${env_file}"
+  parsed_env_file=$(mktemp)
+  if ! python3 - <<'PY' "${env_file}" > "${parsed_env_file}"
 import re
 import sys
 from pathlib import Path
@@ -89,7 +88,18 @@ for line_number, raw_line in enumerate(Path(sys.argv[1]).read_text().splitlines(
     sys.stdout.write(value)
     sys.stdout.write('\0')
 PY
-)
+  then
+    rm -f "${parsed_env_file}"
+    echo "Failed to parse env file: ${env_file}" >&2
+    exit 1
+  fi
+
+  while IFS= read -r -d '' key && IFS= read -r -d '' value; do
+    printf -v "${key}" '%s' "${value}"
+    export "${key}"
+  done < "${parsed_env_file}"
+
+  rm -f "${parsed_env_file}"
 }
 
 require_live_proof_var() {
