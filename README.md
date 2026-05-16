@@ -101,7 +101,7 @@ bash scripts/android/tablet-parity.sh
 
 ### Full live proof
 
-Run the full operator proof lane when you need end-to-end evidence for the real IME workflow:
+Run the full operator proof lane when you need the closest available end-to-end evidence for the real IME workflow:
 
 ```bash
 bash scripts/android/live-proof.sh --env-file .env --evidence-dir captures/android/live-proof
@@ -109,7 +109,8 @@ bash scripts/android/live-proof.sh --env-file .env --evidence-dir captures/andro
 
 This runner:
 
-- loads the OpenAI API key from `.env`
+- requires the full live-proof variable set from `.env.example`, copied into `.env`
+- loads the OpenAI API key and the rest of the live-proof configuration from `.env`
 - drives the real Settings UI to enter the key
 - enables and selects the VibeTap IME
 - launches Termux as a real external target app
