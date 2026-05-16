@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 private val keyboardRows = listOf(
@@ -70,7 +72,8 @@ private fun RowScope.KeyButton(
         onClick = onClick,
         modifier = Modifier
             .weight(weight)
-            .testTag(keyTag(label)),
+            .testTag(keyTag(label))
+            .semantics { contentDescription = keyContentDescription(label) },
     ) {
         Text(text = label)
     }
@@ -83,4 +86,13 @@ private fun keyTag(label: String): String = when (label) {
     "Space" -> "key_space"
     "Enter" -> "key_enter"
     else -> "key_${label.lowercase()}"
+}
+
+private fun keyContentDescription(label: String): String = when (label) {
+    "Mic" -> "Keyboard mic key"
+    "Float" -> "Keyboard float key"
+    "⌫" -> "Keyboard backspace key"
+    "Space" -> "Keyboard space key"
+    "Enter" -> "Keyboard enter key"
+    else -> "Keyboard letter $label key"
 }

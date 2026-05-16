@@ -22,6 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
@@ -29,7 +31,11 @@ import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 object SettingsScreenTestTags {
     const val KeyboardSetupSection = "settings_keyboard_setup_section"
     const val ApiKeySection = "settings_api_key_section"
+    const val ApiKeyField = "settings_api_key_field"
     const val ShortcutPresetsSection = "settings_shortcut_presets_section"
+    const val PresetLabelFieldPrefix = "settings_preset_label_field_"
+    const val PresetTextFieldPrefix = "settings_preset_text_field_"
+    const val PresetSaveButtonPrefix = "settings_preset_save_button_"
 }
 
 @Composable
@@ -88,7 +94,10 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = uiState.openAiApiKey,
                     onValueChange = onApiKeyChanged,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(SettingsScreenTestTags.ApiKeyField)
+                        .semantics { contentDescription = "OpenAI API Key input" },
                     placeholder = { Text("sk-...") },
                     singleLine = true,
                 )
@@ -159,7 +168,10 @@ private fun EditablePresetCard(
                 label = it
                 validationMessage = null
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("${SettingsScreenTestTags.PresetLabelFieldPrefix}${preset.id}")
+                .semantics { contentDescription = "Preset label input ${preset.id}" },
             label = { Text("Preset label") },
             singleLine = true,
             isError = validationMessage != null && label.trim().isBlank(),
@@ -170,7 +182,10 @@ private fun EditablePresetCard(
                 text = it
                 validationMessage = null
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("${SettingsScreenTestTags.PresetTextFieldPrefix}${preset.id}")
+                .semantics { contentDescription = "Preset text input ${preset.id}" },
             label = { Text("Preset text") },
             isError = validationMessage != null && text.trim().isBlank(),
         )
@@ -190,6 +205,9 @@ private fun EditablePresetCard(
                     onSave(label.trim(), text.trim())
                 }
             },
+            modifier = Modifier
+                .testTag("${SettingsScreenTestTags.PresetSaveButtonPrefix}${preset.id}")
+                .semantics { contentDescription = "Save preset ${preset.id}" },
         ) {
             Text("Save preset")
         }
