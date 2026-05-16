@@ -43,7 +43,9 @@ class SettingsScreenTest {
             }
         }
 
+        composeRule.onNodeWithTag(SettingsScreenTestTags.ApiKeySection).assertIsDisplayed()
         composeRule.onNodeWithTag(SettingsScreenTestTags.ApiKeyField).assertIsDisplayed()
+        composeRule.onNodeWithTag(SettingsScreenTestTags.ShortcutPresetsSection).assertIsDisplayed()
         composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetLabelFieldPrefix}live-proof").assertIsDisplayed()
         composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetTextFieldPrefix}live-proof").assertIsDisplayed()
         composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetSaveButtonPrefix}live-proof").assertIsDisplayed()
