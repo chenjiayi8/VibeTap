@@ -87,21 +87,46 @@ wait_for_visible_text() {
   ui_cmd wait-text-contains --timeout "${timeout_seconds}" "${needle}" >/dev/null
 }
 
-termux_ui_contains() {
+termux_ui_text_state() {
   local needle="${1}"
   local dump_path="/data/local/tmp/vibetap-live-proof-window.xml"
+  local dump_output
 
-  "${ADB}" -s "${TARGET_SERIAL}" shell uiautomator dump "${dump_path}" >/dev/null 2>&1
-  "${ADB}" -s "${TARGET_SERIAL}" exec-out cat "${dump_path}" | grep -Fq "${needle}"
+  if ! "${ADB}" -s "${TARGET_SERIAL}" shell uiautomator dump "${dump_path}" >/dev/null 2>&1; then
+    echo "Failed to inspect Termux UI: uiautomator dump failed." >&2
+    exit 1
+  fi
+
+  if ! dump_output=$("${ADB}" -s "${TARGET_SERIAL}" exec-out cat "${dump_path}"); then
+    echo "Failed to inspect Termux UI: could not read ${dump_path}." >&2
+    exit 1
+  fi
+
+  if grep -Fq "${needle}" <<< "${dump_output}"; then
+    printf 'present\n'
+  else
+    printf 'absent\n'
+  fi
 }
 
 require_termux_text_absent() {
   local needle="${1}"
+  local text_state
 
-  if termux_ui_contains "${needle}"; then
-    echo "Stale Termux text detected before phase start: ${needle}" >&2
-    exit 1
-  fi
+  text_state=$(termux_ui_text_state "${needle}")
+  case "${text_state}" in
+    absent)
+      return 0
+      ;;
+    present)
+      echo "Stale Termux text detected before phase start: ${needle}" >&2
+      exit 1
+      ;;
+    *)
+      echo "Failed to inspect Termux UI: unexpected state '${text_state}'." >&2
+      exit 1
+      ;;
+  esac
 }
 
 reset_termux_session() {
