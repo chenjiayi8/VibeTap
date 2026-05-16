@@ -99,9 +99,30 @@ Use the tablet only for final confirmation of keyboard enablement, microphone be
 bash scripts/android/tablet-parity.sh
 ```
 
+### Full live proof
+
+Run the full operator proof lane when you need end-to-end evidence for the real IME workflow:
+
+```bash
+bash scripts/android/live-proof.sh --env-file .env --evidence-dir captures/android/live-proof
+```
+
+This runner:
+
+- loads the OpenAI API key from `.env`
+- drives the real Settings UI to enter the key
+- enables and selects the VibeTap IME
+- launches Termux as a real external target app
+- proves docked typing
+- attempts dictation through the real `MediaRecorder` + OpenAI path
+- proves saved-phrase insertion through the floating panel
+
+If the runner reports `emulator-mediarecorder-unsupported`, treat that as a real blocker for emulator dictation proof, not as a passing run. Keep that label honest in operator reports until the emulator `MediaRecorder` limitation is removed or the proof runs on hardware that supports the full dictation path.
+
 ## Known limitations
 
 - The connected Android test, install, launch, and proof-plan steps require a real device or emulator; they cannot pass in a device-less session.
+- `emulator-mediarecorder-unsupported` means the emulator could not provide a valid `MediaRecorder` dictation proof. That outcome is blocked, not green.
 - The README documents the intended IME-first keyboard interactions, but final on-device proof is still required to confirm keyboard switching and floating-panel ergonomics on hardware.
 - OpenAI API usage is direct from the client and is only acceptable for personal testing.
 - Release signing and store-distribution hardening are out of scope for this MVP.
