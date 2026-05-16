@@ -7,6 +7,7 @@ source "${SCRIPT_DIR}/common.sh"
 
 AVD_NAME="${DEFAULT_AVD_NAME}"
 WIPE_DATA="false"
+REQUIRE_AUDIO="false"
 
 has_graphical_display() {
   if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
@@ -112,9 +113,13 @@ while [[ $# -gt 0 ]]; do
       WIPE_DATA="true"
       shift
       ;;
+    --require-audio)
+      REQUIRE_AUDIO="true"
+      shift
+      ;;
     --help)
       cat <<EOF_HELP
-Usage: scripts/android/start-emulator.sh [--avd-name NAME] [--wipe-data]
+Usage: scripts/android/start-emulator.sh [--avd-name NAME] [--wipe-data] [--require-audio]
 EOF_HELP
       exit 0
       ;;
@@ -124,6 +129,11 @@ EOF_HELP
       ;;
   esac
 done
+
+if [[ "${REQUIRE_AUDIO}" == "true" ]] && ! has_graphical_display; then
+  echo "Audio-required emulator launch refused: no graphical display is available for a live audio-capable emulator session." >&2
+  exit 1
+fi
 
 require_android_tools
 ADB=$(adb_bin)

@@ -47,6 +47,52 @@ require_python3() {
   }
 }
 
+load_env_file() {
+  local env_file="${1}"
+
+  [[ -n "${env_file}" ]] || {
+    echo "load_env_file requires a path." >&2
+    exit 1
+  }
+
+  [[ -f "${env_file}" ]] || {
+    echo "Env file not found: ${env_file}" >&2
+    exit 1
+  }
+
+  set -a
+  # shellcheck disable=SC1090
+  source "${env_file}"
+  set +a
+}
+
+require_live_proof_var() {
+  local var_name="${1}"
+  local value="${!var_name:-}"
+
+  [[ -n "${value}" ]] || {
+    echo "Missing required live-proof variable: ${var_name}" >&2
+    exit 1
+  }
+}
+
+clear_with_backspace() {
+  local serial="${1:-}"
+  local delete_count="${2:-200}"
+  local adb
+  local -a adb_target=()
+
+  adb=$(adb_bin)
+  if [[ -n "${serial}" ]]; then
+    adb_target=(-s "${serial}")
+  fi
+
+  "${adb}" "${adb_target[@]}" shell input keyevent KEYCODE_MOVE_END >/dev/null 2>&1 || true
+  for ((i = 0; i < delete_count; i++)); do
+    "${adb}" "${adb_target[@]}" shell input keyevent KEYCODE_DEL >/dev/null 2>&1 || true
+  done
+}
+
 read_local_properties_sdk_dir() {
   local properties_file="${PROJECT_ROOT}/local.properties"
   [[ -f "${properties_file}" ]] || return 1
