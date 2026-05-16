@@ -49,6 +49,7 @@ require_python3() {
 
 load_env_file() {
   local env_file="${1}"
+  local key value
 
   [[ -n "${env_file}" ]] || {
     echo "load_env_file requires a path." >&2
@@ -60,10 +61,35 @@ load_env_file() {
     exit 1
   }
 
-  set -a
-  # shellcheck disable=SC1090
-  source "${env_file}"
-  set +a
+  require_python3 || exit $?
+
+  while IFS= read -r -d '' key && IFS= read -r -d '' value; do
+    printf -v "${key}" '%s' "${value}"
+    export "${key}"
+  done < <(python3 - <<'PY' "${env_file}"
+import re
+import sys
+from pathlib import Path
+
+for line_number, raw_line in enumerate(Path(sys.argv[1]).read_text().splitlines(), start=1):
+    stripped = raw_line.strip()
+    if not stripped or stripped.startswith('#'):
+        continue
+    if '=' not in raw_line:
+        raise SystemExit(f"Invalid env assignment on line {line_number}: {raw_line}")
+    key, value = raw_line.split('=', 1)
+    key = key.strip()
+    if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', key):
+        raise SystemExit(f"Invalid env key on line {line_number}: {key}")
+    value = value.rstrip('\r').strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'\"', "'"}:
+        value = value[1:-1]
+    sys.stdout.write(key)
+    sys.stdout.write('\0')
+    sys.stdout.write(value)
+    sys.stdout.write('\0')
+PY
+)
 }
 
 require_live_proof_var() {

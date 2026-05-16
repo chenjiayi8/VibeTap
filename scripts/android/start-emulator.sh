@@ -130,11 +130,6 @@ EOF_HELP
   esac
 done
 
-if [[ "${REQUIRE_AUDIO}" == "true" ]] && ! has_graphical_display; then
-  echo "Audio-required emulator launch refused: no graphical display is available for a live audio-capable emulator session." >&2
-  exit 1
-fi
-
 require_android_tools
 ADB=$(adb_bin)
 EMULATOR=$(emulator_bin)
@@ -145,12 +140,20 @@ set -e
 
 if [[ "${MATCHING_STATUS}" -eq 0 ]]; then
   IFS=$'\t' read -r TARGET_SERIAL TARGET_STATE <<< "${MATCHING_EMULATOR}"
+  if [[ "${REQUIRE_AUDIO}" == "true" ]] && ! has_graphical_display; then
+    echo "Reusing ${TARGET_SERIAL} for --require-audio without a local display. Existing emulator state is preserved; audio capability is not revalidated here." >&2
+  fi
   if [[ "${TARGET_STATE}" == "device" ]]; then
     echo "An emulator for ${AVD_NAME} is already running (${TARGET_SERIAL}). Reusing the active emulator."
   else
     echo "An emulator for ${AVD_NAME} already exists (${TARGET_SERIAL}, ${TARGET_STATE}). Waiting for it instead of launching a duplicate."
   fi
 elif [[ "${MATCHING_STATUS}" -eq 1 ]]; then
+  if [[ "${REQUIRE_AUDIO}" == "true" ]] && ! has_graphical_display; then
+    echo "Audio-required emulator launch refused: no graphical display is available for a new live audio-capable emulator session." >&2
+    exit 1
+  fi
+
   EXTRA_ARGS=()
   EMULATOR_ENV=()
   if [[ "${WIPE_DATA}" == "true" ]]; then
