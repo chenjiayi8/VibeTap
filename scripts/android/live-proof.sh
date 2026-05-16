@@ -87,6 +87,38 @@ wait_for_visible_text() {
   ui_cmd wait-text-contains --timeout "${timeout_seconds}" "${needle}" >/dev/null
 }
 
+termux_ui_contains() {
+  local needle="${1}"
+  local dump_path="/data/local/tmp/vibetap-live-proof-window.xml"
+
+  "${ADB}" -s "${TARGET_SERIAL}" shell uiautomator dump "${dump_path}" >/dev/null 2>&1
+  "${ADB}" -s "${TARGET_SERIAL}" exec-out cat "${dump_path}" | grep -Fq "${needle}"
+}
+
+require_termux_text_absent() {
+  local needle="${1}"
+
+  if termux_ui_contains "${needle}"; then
+    echo "Stale Termux text detected before phase start: ${needle}" >&2
+    exit 1
+  fi
+}
+
+reset_termux_session() {
+  "${ADB}" -s "${TARGET_SERIAL}" shell am force-stop "${TERMUX_PACKAGE}" >/dev/null 2>&1 || true
+  "${ADB}" -s "${TARGET_SERIAL}" shell pm clear "${TERMUX_PACKAGE}" >/dev/null 2>&1 || true
+  launch_termux
+}
+
+prepare_termux_phase() {
+  local expected_absent_text="${1}"
+
+  reset_termux_session
+  require_termux_text_absent "${expected_absent_text}"
+  clear_with_backspace "${TARGET_SERIAL}" 200
+  require_termux_text_absent "${expected_absent_text}"
+}
+
 enter_text_with_keyboard() {
   local text="${1}"
   local character
@@ -202,8 +234,7 @@ prepare_emulator_and_builds() {
 }
 
 run_keyboard_typing_phase() {
-  launch_termux
-  clear_with_backspace "${TARGET_SERIAL}" 200
+  prepare_termux_phase "${VIBETAP_TYPED_SENTINEL}"
   enter_text_with_keyboard "${VIBETAP_TYPED_SENTINEL}"
   wait_for_visible_text "${VIBETAP_TYPED_SENTINEL}" 20
   save_screenshot "typed-proof"
@@ -212,7 +243,7 @@ run_keyboard_typing_phase() {
 run_dictation_phase() {
   DICTATION_LOGCAT_PATH="${EVIDENCE_DIR}/dictation-logcat.txt"
   : > "${DICTATION_LOGCAT_PATH}"
-  clear_with_backspace "${TARGET_SERIAL}" 200
+  prepare_termux_phase "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}"
   "${ADB}" -s "${TARGET_SERIAL}" logcat -c >/dev/null 2>&1 || true
 
   ui_cmd tap-desc "Keyboard mic key" >/dev/null
@@ -234,7 +265,7 @@ run_dictation_phase() {
 }
 
 run_saved_phrase_phase() {
-  clear_with_backspace "${TARGET_SERIAL}" 200
+  prepare_termux_phase "${VIBETAP_SAVED_PHRASE_TEXT}"
   ui_cmd tap-desc "Keyboard float key" >/dev/null
   ui_cmd tap-text "${VIBETAP_SAVED_PHRASE_LABEL}" >/dev/null
   wait_for_visible_text "${VIBETAP_SAVED_PHRASE_TEXT}" 20
