@@ -10,6 +10,16 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 
+RETRYABLE_UI_ERRORS = (
+    LookupError,
+    RuntimeError,
+    ValueError,
+    ET.ParseError,
+    subprocess.CalledProcessError,
+    OSError,
+)
+
+
 @dataclass(frozen=True)
 class Rect:
     left: int
@@ -153,7 +163,7 @@ def wait_for_node(
                 content_desc=content_desc,
                 text_contains=text_contains,
             )
-        except LookupError as exc:
+        except RETRYABLE_UI_ERRORS as exc:
             last_error = exc
             time.sleep(interval_seconds)
 
@@ -169,12 +179,20 @@ def tap_node(node: UiNode, *, serial: str | None = None) -> tuple[int, int]:
 
 
 def _escape_input_text(value: str) -> str:
+    """Translate spaces for `adb shell input text` and reject unsupported literal `%`.
+
+    This helper intentionally supports plain text plus spaces only. Spaces are encoded
+    as `%s`, which matches adb's shell input contract. Literal percent characters are
+    rejected so callers do not accidentally rely on ambiguous `%` handling.
+    """
+    if "%" in value:
+        raise ValueError("Literal '%' is unsupported by set_text(); spaces are encoded as %s for adb input text")
     return "".join("%s" if character == " " else character for character in value)
 
 
 def set_text(node: UiNode, value: str, *, serial: str | None = None) -> str:
-    tap_node(node, serial=serial)
     escaped_value = _escape_input_text(value)
+    tap_node(node, serial=serial)
     adb("shell", "input", "text", escaped_value, serial=serial)
     return escaped_value
 
