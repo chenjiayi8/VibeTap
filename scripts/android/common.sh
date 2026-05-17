@@ -47,6 +47,88 @@ require_python3() {
   }
 }
 
+load_env_file() {
+  local env_file="${1}"
+  local parsed_env_file
+  local key value
+
+  [[ -n "${env_file}" ]] || {
+    echo "load_env_file requires a path." >&2
+    exit 1
+  }
+
+  [[ -f "${env_file}" ]] || {
+    echo "Env file not found: ${env_file}" >&2
+    exit 1
+  }
+
+  require_python3 || exit $?
+
+  parsed_env_file=$(mktemp)
+  if ! python3 - <<'PY' "${env_file}" > "${parsed_env_file}"
+import re
+import sys
+from pathlib import Path
+
+for line_number, raw_line in enumerate(Path(sys.argv[1]).read_text().splitlines(), start=1):
+    stripped = raw_line.strip()
+    if not stripped or stripped.startswith('#'):
+        continue
+    if '=' not in raw_line:
+        raise SystemExit(f"Invalid env assignment on line {line_number}: {raw_line}")
+    key, value = raw_line.split('=', 1)
+    key = key.strip()
+    if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', key):
+        raise SystemExit(f"Invalid env key on line {line_number}: {key}")
+    value = value.rstrip('\r').strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'\"', "'"}:
+        value = value[1:-1]
+    sys.stdout.write(key)
+    sys.stdout.write('\0')
+    sys.stdout.write(value)
+    sys.stdout.write('\0')
+PY
+  then
+    rm -f "${parsed_env_file}"
+    echo "Failed to parse env file: ${env_file}" >&2
+    exit 1
+  fi
+
+  while IFS= read -r -d '' key && IFS= read -r -d '' value; do
+    printf -v "${key}" '%s' "${value}"
+    export "${key}"
+  done < "${parsed_env_file}"
+
+  rm -f "${parsed_env_file}"
+}
+
+require_live_proof_var() {
+  local var_name="${1}"
+  local value="${!var_name:-}"
+
+  [[ -n "${value}" ]] || {
+    echo "Missing required live-proof variable: ${var_name}" >&2
+    exit 1
+  }
+}
+
+clear_with_backspace() {
+  local serial="${1:-}"
+  local delete_count="${2:-200}"
+  local adb
+  local -a adb_target=()
+
+  adb=$(adb_bin)
+  if [[ -n "${serial}" ]]; then
+    adb_target=(-s "${serial}")
+  fi
+
+  "${adb}" "${adb_target[@]}" shell input keyevent KEYCODE_MOVE_END >/dev/null 2>&1 || true
+  for ((i = 0; i < delete_count; i++)); do
+    "${adb}" "${adb_target[@]}" shell input keyevent KEYCODE_DEL >/dev/null 2>&1 || true
+  done
+}
+
 read_local_properties_sdk_dir() {
   local properties_file="${PROJECT_ROOT}/local.properties"
   [[ -f "${properties_file}" ]] || return 1
