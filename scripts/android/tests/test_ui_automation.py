@@ -207,6 +207,57 @@ class UiAutomationTests(unittest.TestCase):
         self.assertEqual((82, 2148), vibetap_settings_desc_tap_point("Keyboard letter Z key", bounds))
         self.assertEqual((690, 2148), vibetap_settings_desc_tap_point("Keyboard letter B key", bounds))
 
+    def test_tap_vibetap_desc_prefers_visible_content_description_before_fallback(self):
+        target = UiNode(text="", content_desc="Keyboard mic key", bounds="[10,20][30,40]")
+        with (
+            mock.patch("scripts.android.ui_automation.dump_nodes", return_value=[target]) as dump_nodes_mock,
+            mock.patch("scripts.android.ui_automation.tap_node", return_value=(20, 30)) as tap_node_mock,
+            mock.patch("scripts.android.ui_automation.device_screen_bounds") as bounds_mock,
+            mock.patch("scripts.android.ui_automation.tap_point") as tap_point_mock,
+        ):
+            result = ui_automation.tap_vibetap_desc("Keyboard mic key", serial="emulator-5554")
+
+        self.assertEqual((20, 30), result)
+        dump_nodes_mock.assert_called_once_with(serial="emulator-5554")
+        tap_node_mock.assert_called_once_with(target, serial="emulator-5554")
+        bounds_mock.assert_not_called()
+        tap_point_mock.assert_not_called()
+
+    def test_tap_vibetap_desc_falls_back_to_coordinates_when_desc_not_visible(self):
+        with (
+            mock.patch("scripts.android.ui_automation.dump_nodes", side_effect=LookupError("missing")) as dump_nodes_mock,
+            mock.patch(
+                "scripts.android.ui_automation.device_screen_bounds",
+                return_value=parse_bounds("[0,0][1080,2400]"),
+            ) as bounds_mock,
+            mock.patch(
+                "scripts.android.ui_automation.tap_point",
+                return_value=(180, 1762),
+            ) as tap_point_mock,
+        ):
+            result = ui_automation.tap_vibetap_desc("Keyboard mic key", serial="emulator-5554")
+
+        self.assertEqual((180, 1762), result)
+        dump_nodes_mock.assert_called_once_with(serial="emulator-5554")
+        bounds_mock.assert_called_once_with(serial="emulator-5554")
+        tap_point_mock.assert_called_once()
+
+    def test_tap_vibetap_settings_desc_prefers_visible_content_description_before_fallback(self):
+        target = UiNode(text="", content_desc="Keyboard mic key", bounds="[100,200][300,400]")
+        with (
+            mock.patch("scripts.android.ui_automation.dump_nodes", return_value=[target]) as dump_nodes_mock,
+            mock.patch("scripts.android.ui_automation.tap_node", return_value=(200, 300)) as tap_node_mock,
+            mock.patch("scripts.android.ui_automation.device_screen_bounds") as bounds_mock,
+            mock.patch("scripts.android.ui_automation.tap_point") as tap_point_mock,
+        ):
+            result = ui_automation.tap_vibetap_settings_desc("Keyboard mic key", serial="emulator-5554")
+
+        self.assertEqual((200, 300), result)
+        dump_nodes_mock.assert_called_once_with(serial="emulator-5554")
+        tap_node_mock.assert_called_once_with(target, serial="emulator-5554")
+        bounds_mock.assert_not_called()
+        tap_point_mock.assert_not_called()
+
     def test_get_text_by_content_desc_reads_parent_text_when_desc_node_is_child(self):
         xml = '''
         <hierarchy>
