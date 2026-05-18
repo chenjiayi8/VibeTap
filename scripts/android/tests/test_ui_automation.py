@@ -8,9 +8,14 @@ from scripts.android import ui_automation
 from scripts.android.ui_automation import (
     CompletedProcessResult,
     UiNode,
+    device_screen_bounds,
     find_first,
     parse_bounds,
     parse_nodes,
+    screen_bounds,
+    vibetap_desc_tap_point,
+    vibetap_floating_skill_tap_point,
+    vibetap_settings_desc_tap_point,
 )
 
 
@@ -85,8 +90,8 @@ class UiAutomationTests(unittest.TestCase):
         self.assertEqual("Mic", nodes[-1].text)
         self.assertEqual(
             [
-                mock.call("shell", "uiautomator", "dump", "/data/local/tmp/vibetap-window-dump.xml", serial="emulator-5554"),
-                mock.call("exec-out", "cat", "/data/local/tmp/vibetap-window-dump.xml", serial="emulator-5554"),
+                mock.call("shell", "uiautomator", "dump", "/data/local/tmp/vibetap-window-dump.xml", serial="emulator-5554", timeout=10.0),
+                mock.call("exec-out", "cat", "/data/local/tmp/vibetap-window-dump.xml", serial="emulator-5554", timeout=10.0),
             ],
             adb_mock.call_args_list,
         )
@@ -162,6 +167,57 @@ class UiAutomationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ui_automation.set_text(UiNode(text="", content_desc="", bounds="[0,0][1,1]"), "100% ready")
 
+    def test_screen_bounds_uses_root_node_bounds(self):
+        nodes = parse_nodes(SAMPLE_XML)
+        self.assertEqual(parse_bounds("[0,0][200,80]"), screen_bounds(nodes))
+
+    def test_device_screen_bounds_prefers_override_size(self):
+        with mock.patch(
+            "scripts.android.ui_automation.adb",
+            return_value=CompletedProcessResult(
+                stdout="Physical size: 1080x2400\nOverride size: 720x1600\n",
+                stderr="",
+                returncode=0,
+            ),
+        ) as adb_mock:
+            bounds = device_screen_bounds(serial="emulator-5554")
+
+        self.assertEqual(parse_bounds("[0,0][720,1600]"), bounds)
+        adb_mock.assert_called_once_with("shell", "wm", "size", serial="emulator-5554")
+
+    def test_vibetap_desc_tap_point_maps_keyboard_controls(self):
+        bounds = parse_bounds("[0,0][1080,2400]")
+        self.assertEqual((540, 1762), vibetap_desc_tap_point("Keyboard float key", bounds))
+        self.assertEqual((477, 2333), vibetap_desc_tap_point("Keyboard space key", bounds))
+        self.assertEqual((990, 1949), vibetap_desc_tap_point("Keyboard letter P key", bounds))
+        self.assertEqual((133, 2213), vibetap_desc_tap_point("Keyboard letter Z key", bounds))
+
+    def test_vibetap_floating_skill_tap_point_maps_three_skill_slots(self):
+        bounds = parse_bounds("[0,0][1080,2400]")
+        self.assertEqual((207, 408), vibetap_floating_skill_tap_point(0, bounds))
+        self.assertEqual((540, 408), vibetap_floating_skill_tap_point(1, bounds))
+        self.assertEqual((873, 408), vibetap_floating_skill_tap_point(2, bounds))
+        with self.assertRaises(ValueError):
+            vibetap_floating_skill_tap_point(3, bounds)
+
+    def test_vibetap_settings_desc_tap_point_maps_settings_keyboard_controls(self):
+        bounds = parse_bounds("[0,0][1080,2400]")
+        self.assertEqual((442, 1738), vibetap_settings_desc_tap_point("Keyboard float key", bounds))
+        self.assertEqual((467, 2234), vibetap_settings_desc_tap_point("Keyboard space key", bounds))
+        self.assertEqual((82, 2148), vibetap_settings_desc_tap_point("Keyboard letter Z key", bounds))
+        self.assertEqual((690, 2148), vibetap_settings_desc_tap_point("Keyboard letter B key", bounds))
+
+    def test_get_text_by_content_desc_reads_parent_text_when_desc_node_is_child(self):
+        xml = '''
+        <hierarchy>
+          <node text="parent text" bounds="[0,0][10,10]">
+            <node text="" content-desc="Input" bounds="[0,0][10,10]" />
+          </node>
+        </hierarchy>
+        '''
+        with mock.patch("scripts.android.ui_automation.dump_xml_text", return_value=xml):
+            self.assertEqual("parent text", ui_automation.get_text_by_content_desc("Input"))
+
     def test_cli_subcommands_dispatch_and_exit_success(self):
         target = UiNode(text="Ready", content_desc="Input", bounds="[1,2][3,4]")
         cases = [
@@ -230,6 +286,40 @@ class UiAutomationTests(unittest.TestCase):
                 else:
                     self.assertEqual(set_text_calls, set_text_mock.call_args_list)
                 self.assertEqual("", stderr.getvalue())
+
+    def test_cli_dispatches_vibetap_fallback_commands(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            mock.patch("scripts.android.ui_automation.tap_vibetap_desc", return_value=(111, 222)) as tap_desc_mock,
+            mock.patch("scripts.android.ui_automation.tap_vibetap_settings_desc", return_value=(123, 234)) as tap_settings_desc_mock,
+            mock.patch("scripts.android.ui_automation.tap_vibetap_floating_skill", return_value=(333, 444)) as tap_skill_mock,
+            mock.patch("scripts.android.ui_automation.tap_relative", return_value=(555, 666)) as tap_relative_mock,
+            mock.patch("scripts.android.ui_automation.set_text_relative", return_value="hello%sworld") as set_text_relative_mock,
+            mock.patch("scripts.android.ui_automation.get_text_by_content_desc", return_value="hello world") as get_text_desc_mock,
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
+        ):
+            exit_code_desc = ui_automation.main(["tap-vibetap-desc", "Keyboard mic key"])
+            exit_code_settings_desc = ui_automation.main(["tap-vibetap-settings-desc", "Keyboard mic key"])
+            exit_code_skill = ui_automation.main(["tap-vibetap-floating-skill", "2"])
+            exit_code_relative = ui_automation.main(["tap-relative", "0.16", "0.68"])
+            exit_code_set_relative = ui_automation.main(["set-text-relative", "0.45", "0.33", "hello world"])
+            exit_code_get_text_desc = ui_automation.main(["get-text-desc", "Input"])
+
+        self.assertEqual(0, exit_code_desc)
+        self.assertEqual(0, exit_code_settings_desc)
+        self.assertEqual(0, exit_code_skill)
+        self.assertEqual(0, exit_code_relative)
+        self.assertEqual(0, exit_code_set_relative)
+        self.assertEqual(0, exit_code_get_text_desc)
+        tap_desc_mock.assert_called_once_with("Keyboard mic key", serial=None)
+        tap_settings_desc_mock.assert_called_once_with("Keyboard mic key", serial=None)
+        tap_skill_mock.assert_called_once_with(2, serial=None)
+        tap_relative_mock.assert_called_once_with(0.16, 0.68, serial=None)
+        set_text_relative_mock.assert_called_once_with(0.45, 0.33, "hello world", serial=None)
+        get_text_desc_mock.assert_called_once_with("Input", serial=None)
+        self.assertEqual("", stderr.getvalue())
 
     def test_cli_returns_error_exit_code_for_driver_failures(self):
         stderr = io.StringIO()

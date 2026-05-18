@@ -2,17 +2,26 @@ package com.frank.voiceoverlay.ime
 
 import android.inputmethodservice.InputMethodService
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.frank.voiceoverlay.R
 import com.frank.voiceoverlay.dictation.AndroidAudioRecorder
 import com.frank.voiceoverlay.dictation.DictationCoordinator
 import com.frank.voiceoverlay.dictation.OpenAiCleanupClient
 import com.frank.voiceoverlay.dictation.OpenAiTranscriptionClient
+import com.frank.voiceoverlay.ime.ui.VibeTapImeRoot
 import com.frank.voiceoverlay.settings.SettingsStore
 import com.frank.voiceoverlay.settings.voiceOverlaySettingsDataStore
-import com.frank.voiceoverlay.ime.ui.VibeTapImeRoot
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,13 +49,19 @@ class VibeTapImeService : InputMethodService() {
             commitPhrase = { text -> committer.commitText(text) },
         )
     }
+    private var inputViewOwners: ImeInputViewTreeOwners? = null
 
     override fun onCreateInputView(): View {
         controller.bind(serviceScope)
+        inputViewOwners?.destroy()
+
+        val owners = ImeInputViewTreeOwners().apply { resume() }
         val commitText: (String) -> Boolean = { text -> committer.commitText(text) }
 
         return ComposeView(this).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            owners.installOn(this)
+            this@VibeTapImeService.window?.window?.decorView?.let(owners::installOn)
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 MaterialTheme {
                     VibeTapImeRoot(
@@ -58,10 +73,25 @@ class VibeTapImeService : InputMethodService() {
                     )
                 }
             }
+        }.also { inputViewOwners = owners }
+    }
+
+    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        inputViewOwners?.resume()
+        window?.window?.decorView?.let { rootView ->
+            inputViewOwners?.installOn(rootView)
         }
     }
 
+    override fun onFinishInputView(finishingInput: Boolean) {
+        inputViewOwners?.stop()
+        super.onFinishInputView(finishingInput)
+    }
+
     override fun onDestroy() {
+        inputViewOwners?.destroy()
+        inputViewOwners = null
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -99,5 +129,55 @@ class VibeTapImeService : InputMethodService() {
 
     companion object {
         const val OPENAI_BASE_URL = "https://api.openai.com"
+    }
+}
+
+private class ImeInputViewTreeOwners : LifecycleOwner, SavedStateRegistryOwner {
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+
+    override val lifecycle: Lifecycle
+        get() = lifecycleRegistry
+
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateRegistryController.savedStateRegistry
+
+    init {
+        savedStateRegistryController.performAttach()
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+    }
+
+    fun installOn(view: View) {
+        view.setViewTreeLifecycleOwner(this)
+        view.setViewTreeSavedStateRegistryOwner(this)
+    }
+
+    fun resume() {
+        if (lifecycle.currentState == Lifecycle.State.DESTROYED) {
+            return
+        }
+        if (lifecycle.currentState == Lifecycle.State.CREATED) {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        }
+        if (lifecycle.currentState == Lifecycle.State.STARTED) {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        }
+    }
+
+    fun stop() {
+        if (lifecycle.currentState == Lifecycle.State.RESUMED) {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        }
+        if (lifecycle.currentState == Lifecycle.State.STARTED) {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        }
+    }
+
+    fun destroy() {
+        stop()
+        if (lifecycle.currentState == Lifecycle.State.CREATED) {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        }
     }
 }
