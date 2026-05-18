@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -69,6 +70,34 @@ class DockedKeyboardViewTest {
 
         listOf("key_mic", "key_float", "key_backspace", "key_space", "key_enter").forEach { tag ->
             composeRule.onNodeWithTag(tag).assertHasClickAction()
+        }
+    }
+
+    @Test
+    fun dockedKeyboardExposesLiveProofContentDescriptions() {
+        composeRule.setContent {
+            MaterialTheme {
+                DockedKeyboardView(
+                    onMicTapped = {},
+                    onLayoutToggle = {},
+                    onBackspace = { true },
+                    onEnter = { true },
+                    onCommitLetter = { true },
+                    onCommitPhrase = { true },
+                )
+            }
+        }
+
+        listOf(
+            "Keyboard mic key",
+            "Keyboard float key",
+            "Keyboard backspace key",
+            "Keyboard space key",
+            "Keyboard enter key",
+            "Keyboard letter A key",
+            "Keyboard letter Z key",
+        ).forEach { contentDescription ->
+            composeRule.onNodeWithContentDescription(contentDescription).assertIsDisplayed()
         }
     }
 

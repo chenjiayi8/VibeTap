@@ -130,11 +130,6 @@ EOF_HELP
   esac
 done
 
-if [[ "${REQUIRE_AUDIO}" == "true" ]] && ! has_graphical_display; then
-  echo "Audio-required emulator launch refused: no graphical display is available for a live audio-capable emulator session." >&2
-  exit 1
-fi
-
 require_android_tools
 ADB=$(adb_bin)
 EMULATOR=$(emulator_bin)
@@ -151,6 +146,11 @@ if [[ "${MATCHING_STATUS}" -eq 0 ]]; then
     echo "An emulator for ${AVD_NAME} already exists (${TARGET_SERIAL}, ${TARGET_STATE}). Waiting for it instead of launching a duplicate."
   fi
 elif [[ "${MATCHING_STATUS}" -eq 1 ]]; then
+  if [[ "${REQUIRE_AUDIO}" == "true" ]] && ! has_graphical_display; then
+    echo "Audio-required emulator launch refused: no graphical display is available for a live audio-capable emulator session." >&2
+    exit 1
+  fi
+
   EXTRA_ARGS=()
   EMULATOR_ENV=()
   if [[ "${WIPE_DATA}" == "true" ]]; then
