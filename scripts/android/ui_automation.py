@@ -331,15 +331,23 @@ def tap_point(x: int, y: int, *, serial: str | None = None) -> tuple[int, int]:
 
 
 def tap_vibetap_desc(content_desc: str, *, serial: str | None = None) -> tuple[int, int]:
-    bounds = device_screen_bounds(serial=serial)
-    x, y = vibetap_desc_tap_point(content_desc, bounds)
-    return tap_point(x, y, serial=serial)
+    try:
+        node = find_first(dump_nodes(serial=serial), content_desc=content_desc)
+        return tap_node(node, serial=serial)
+    except RETRYABLE_UI_ERRORS:
+        bounds = device_screen_bounds(serial=serial)
+        x, y = vibetap_desc_tap_point(content_desc, bounds)
+        return tap_point(x, y, serial=serial)
 
 
 def tap_vibetap_settings_desc(content_desc: str, *, serial: str | None = None) -> tuple[int, int]:
-    bounds = device_screen_bounds(serial=serial)
-    x, y = vibetap_settings_desc_tap_point(content_desc, bounds)
-    return tap_point(x, y, serial=serial)
+    try:
+        node = find_first(dump_nodes(serial=serial), content_desc=content_desc)
+        return tap_node(node, serial=serial)
+    except RETRYABLE_UI_ERRORS:
+        bounds = device_screen_bounds(serial=serial)
+        x, y = vibetap_settings_desc_tap_point(content_desc, bounds)
+        return tap_point(x, y, serial=serial)
 
 
 def tap_vibetap_floating_skill(index: int, *, serial: str | None = None) -> tuple[int, int]:
@@ -377,13 +385,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
     tap_vibetap_desc = subparsers.add_parser(
         "tap-vibetap-desc",
-        help="Tap a VibeTap IME control using deterministic screen-relative coordinates",
+        help="Tap a VibeTap IME control by content description, with coordinate fallback when the node is unavailable",
     )
     tap_vibetap_desc.add_argument("content_desc")
 
     tap_vibetap_settings_desc = subparsers.add_parser(
         "tap-vibetap-settings-desc",
-        help="Tap a VibeTap IME control using settings-screen-specific coordinates",
+        help="Tap a settings-screen VibeTap IME control by content description, with coordinate fallback when the node is unavailable",
     )
     tap_vibetap_settings_desc.add_argument("content_desc")
 

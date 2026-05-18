@@ -113,10 +113,11 @@ This runner:
 - loads the OpenAI API key and the rest of the live-proof configuration from `.env`
 - drives the real Settings UI to enter the key
 - enables and selects the VibeTap IME
-- launches Termux as a real external target app
-- proves docked typing
+- proves docked typing on the real Settings screen field using the active IME
 - attempts dictation through the real `MediaRecorder` + OpenAI path
-- proves saved-phrase insertion through the floating panel
+- proves saved-phrase insertion through the floating panel on that same visible field
+
+The current runner keeps the text-entry evidence on VibeTap's Settings screen because that surface is more observable under emulator automation than Termux or other external apps. The Termux helpers remain in the script for future external-target proof work, but the shipped live-proof lane does not yet claim a full external-editor insertion proof.
 
 If the runner reports `emulator-mediarecorder-unsupported`, treat that as a real blocker for emulator dictation proof, not as a passing run. Keep that label honest in operator reports until the emulator `MediaRecorder` limitation is removed or the proof runs on hardware that supports the full dictation path.
 

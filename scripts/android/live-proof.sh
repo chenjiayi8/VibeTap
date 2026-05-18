@@ -15,6 +15,9 @@ TERMUX_ACTIVITY="com.termux.app.TermuxActivity"
 IME_ID="${APP_ID}/.ime.VibeTapImeService"
 APP_APK_PATH="${PROJECT_ROOT}/app/build/outputs/apk/debug/app-debug.apk"
 SETTINGS_PROOF_FIELD_DESC="Preset text input ship-pr"
+SETTINGS_LABEL_FIELD_DESC="Preset label input ship-pr"
+SETTINGS_API_KEY_FIELD_DESC="OpenAI API Key input"
+SETTINGS_SAVE_PRESET_DESC="Save preset ship-pr"
 API_KEY_FIELD_X="0.50"
 API_KEY_FIELD_Y="0.382"
 TYPING_PROOF_FIELD_X="0.50"
@@ -139,6 +142,25 @@ wait_for_field_text() {
   return 1
 }
 
+require_field_text_absent() {
+  local content_desc="${1}"
+  local unexpected_text="${2}"
+  local timeout_seconds="${3:-20}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local observed_text
+
+  while (( SECONDS < deadline )); do
+    observed_text=$(ui_cmd get-text-desc "${content_desc}" 2>/dev/null || true)
+    if [[ "${observed_text}" != *"${unexpected_text}"* ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Field ${content_desc} still contained unexpected text: ${unexpected_text}" >&2
+  return 1
+}
+
 window_ui_text_state() {
   local needle="${1}"
   local dump_path="/data/local/tmp/vibetap-live-proof-window.xml"
@@ -214,9 +236,10 @@ ensure_floating_keyboard() {
 }
 
 prepare_settings_proof_field_phase() {
-  local x_fraction="${1}"
-  local y_fraction="${2}"
-  local expected_absent_text="${3}"
+  local content_desc="${1}"
+  local x_fraction="${2}"
+  local y_fraction="${3}"
+  local expected_absent_text="${4}"
 
   set_phase prepare_settings_proof_field_phase_launch_activity
   launch_main_activity "${TARGET_SERIAL}" >/dev/null
@@ -224,7 +247,9 @@ prepare_settings_proof_field_phase() {
   save_screenshot "prepare-field-after-launch"
 
   set_phase prepare_settings_proof_field_phase_tap_field
-  ui_cmd tap-relative "${x_fraction}" "${y_fraction}" >/dev/null
+  if ! ui_cmd tap-desc "${content_desc}" >/dev/null 2>&1; then
+    ui_cmd tap-relative "${x_fraction}" "${y_fraction}" >/dev/null
+  fi
   save_screenshot "prepare-field-after-tap"
 
   set_phase prepare_settings_proof_field_phase_clear_field
@@ -232,7 +257,7 @@ prepare_settings_proof_field_phase() {
   save_screenshot "prepare-field-after-clear"
 
   set_phase prepare_settings_proof_field_phase_check_stale_text
-  # Best-effort only: the field is visually empty after clear, and UIAutomator text reads are unreliable here.
+  require_field_text_absent "${content_desc}" "${expected_absent_text}"
 }
 
 enter_text_with_settings_keyboard() {
@@ -302,10 +327,13 @@ configure_settings_screen() {
   set_phase configure_settings_screen
   launch_main_activity "${TARGET_SERIAL}" >/dev/null
   sleep 2
-  set_field_text_relative "${API_KEY_FIELD_X}" "${API_KEY_FIELD_Y}" "${VIBETAP_OPENAI_API_KEY}"
-  set_field_text_relative "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${VIBETAP_SAVED_PHRASE_LABEL}"
-  set_field_text_relative "${COMMIT_PROOF_FIELD_X}" "${COMMIT_PROOF_FIELD_Y}" "${VIBETAP_SAVED_PHRASE_TEXT}"
-  ui_cmd tap-relative 0.16 0.682 >/dev/null
+  set_field_text "${SETTINGS_API_KEY_FIELD_DESC}" "${VIBETAP_OPENAI_API_KEY}"
+  wait_for_field_text "${SETTINGS_API_KEY_FIELD_DESC}" "${VIBETAP_OPENAI_API_KEY}"
+  set_field_text "${SETTINGS_LABEL_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_LABEL}"
+  wait_for_field_text "${SETTINGS_LABEL_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_LABEL}"
+  set_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_TEXT}"
+  wait_for_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_TEXT}"
+  ui_cmd tap-desc "${SETTINGS_SAVE_PRESET_DESC}" >/dev/null
   save_screenshot "settings-configured"
 }
 
@@ -356,12 +384,14 @@ run_keyboard_typing_phase() {
   set_phase run_keyboard_typing_phase
   local typing_sentinel_compact="${VIBETAP_TYPED_SENTINEL// /}"
   set_phase run_keyboard_typing_phase_prepare_field
-  prepare_settings_proof_field_phase "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${typing_sentinel_compact}"
+  prepare_settings_proof_field_phase "${SETTINGS_PROOF_FIELD_DESC}" "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${typing_sentinel_compact}"
   set_phase run_keyboard_typing_phase_ensure_docked
   ensure_docked_keyboard
   set_phase run_keyboard_typing_phase_enter_text
   enter_text_with_settings_keyboard "${typing_sentinel_compact}"
   sleep 1
+  set_phase run_keyboard_typing_phase_assert_text
+  wait_for_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${typing_sentinel_compact}" 15
   set_phase run_keyboard_typing_phase_capture
   save_screenshot "typed-proof"
 }
@@ -370,7 +400,7 @@ run_dictation_phase() {
   set_phase run_dictation_phase
   DICTATION_LOGCAT_PATH="${EVIDENCE_DIR}/dictation-logcat.txt"
   : > "${DICTATION_LOGCAT_PATH}"
-  prepare_settings_proof_field_phase "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}"
+  prepare_settings_proof_field_phase "${SETTINGS_PROOF_FIELD_DESC}" "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}"
   ensure_docked_keyboard
   "${ADB}" -s "${TARGET_SERIAL}" logcat -c >/dev/null 2>&1 || true
 
@@ -385,7 +415,7 @@ run_dictation_phase() {
   "${ADB}" -s "${TARGET_SERIAL}" logcat -d > "${DICTATION_LOGCAT_PATH}" || true
 
   record_mediarecorder_blocker_if_present
-  if wait_for_field_text "Preset label input ship-pr" "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}" 15; then
+  if wait_for_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}" 15; then
     save_screenshot "dictation-proof"
     return 0
   fi
@@ -395,11 +425,13 @@ run_dictation_phase() {
 
 run_saved_phrase_phase() {
   set_phase run_saved_phrase_phase
-  prepare_settings_proof_field_phase "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${VIBETAP_SAVED_PHRASE_TEXT}"
+  prepare_settings_proof_field_phase "${SETTINGS_PROOF_FIELD_DESC}" "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${VIBETAP_SAVED_PHRASE_TEXT}"
   ensure_floating_keyboard
   set_phase run_saved_phrase_phase_tap_skill
   tap_vibetap_floating_skill 0
   sleep 1
+  set_phase run_saved_phrase_phase_assert_text
+  wait_for_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_TEXT}" 15
   set_phase run_saved_phrase_phase_capture
   save_screenshot "saved-phrase-proof"
 }
