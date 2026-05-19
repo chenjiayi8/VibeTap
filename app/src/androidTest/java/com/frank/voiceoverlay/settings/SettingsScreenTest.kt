@@ -28,8 +28,8 @@ class SettingsScreenTest {
                         microphonePermissionGranted = false,
                         presets = listOf(
                             ShortcutPreset(
-                                id = "live-proof",
-                                label = "LiveProof",
+                                id = "ship-pr",
+                                label = "Ship PR",
                                 text = "vibetap saved phrase proof",
                                 order = 0,
                             ),
@@ -48,10 +48,13 @@ class SettingsScreenTest {
         composeRule.onNodeWithTag(SettingsScreenTestTags.ApiKeySection).assertIsDisplayed()
         composeRule.onNodeWithTag(SettingsScreenTestTags.ApiKeyField).assertIsDisplayed()
         composeRule.onNodeWithTag(SettingsScreenTestTags.ShortcutPresetsSection).assertIsDisplayed()
-        composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetLabelFieldPrefix}live-proof").assertIsDisplayed()
-        composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetTextFieldPrefix}live-proof").assertIsDisplayed()
-        composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetSaveButtonPrefix}live-proof").assertIsDisplayed()
+        composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetLabelFieldPrefix}ship-pr").assertIsDisplayed()
+        composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetTextFieldPrefix}ship-pr").assertIsDisplayed()
+        composeRule.onNodeWithTag("${SettingsScreenTestTags.PresetSaveButtonPrefix}ship-pr").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("OpenAI API Key input").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Preset label input ship-pr").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Preset text input ship-pr").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Save preset ship-pr").assertIsDisplayed()
     }
 
     @Test

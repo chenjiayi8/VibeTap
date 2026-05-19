@@ -14,6 +14,16 @@ TERMUX_PACKAGE="com.termux"
 TERMUX_ACTIVITY="com.termux.app.TermuxActivity"
 IME_ID="${APP_ID}/.ime.VibeTapImeService"
 APP_APK_PATH="${PROJECT_ROOT}/app/build/outputs/apk/debug/app-debug.apk"
+SETTINGS_PROOF_FIELD_DESC="Preset text input ship-pr"
+SETTINGS_LABEL_FIELD_DESC="Preset label input ship-pr"
+SETTINGS_API_KEY_FIELD_DESC="OpenAI API Key input"
+SETTINGS_SAVE_PRESET_DESC="Save preset ship-pr"
+API_KEY_FIELD_X="0.50"
+API_KEY_FIELD_Y="0.382"
+TYPING_PROOF_FIELD_X="0.50"
+TYPING_PROOF_FIELD_Y="0.650"
+COMMIT_PROOF_FIELD_X="0.50"
+COMMIT_PROOF_FIELD_Y="0.729"
 AUDIO_FEED_LOG=""
 DICTATION_LOGCAT_PATH=""
 
@@ -57,8 +67,25 @@ save_screenshot() {
   "${ADB}" -s "${TARGET_SERIAL}" exec-out screencap -p > "${EVIDENCE_DIR}/${name}.png"
 }
 
+set_phase() {
+  local phase="${1}"
+  printf '%s\n' "${phase}" > "${EVIDENCE_DIR}/current-phase.txt"
+}
+
 ui_cmd() {
   "${UI_AUTOMATION[@]}" --serial "${TARGET_SERIAL}" "$@"
+}
+
+tap_vibetap_desc() {
+  ui_cmd tap-vibetap-desc "$1" >/dev/null
+}
+
+tap_vibetap_settings_desc() {
+  ui_cmd tap-vibetap-settings-desc "$1" >/dev/null
+}
+
+tap_vibetap_floating_skill() {
+  ui_cmd tap-vibetap-floating-skill "$1" >/dev/null
 }
 
 focus_termux_input() {
@@ -77,8 +104,17 @@ set_field_text() {
   local content_desc="${1}"
   local value="${2}"
   ui_cmd tap-desc "${content_desc}" >/dev/null
-  clear_with_backspace "${TARGET_SERIAL}" 200
+  clear_with_backspace "${TARGET_SERIAL}" 96
   ui_cmd set-text-desc "${content_desc}" "${value}" >/dev/null
+}
+
+set_field_text_relative() {
+  local x_fraction="${1}"
+  local y_fraction="${2}"
+  local value="${3}"
+  ui_cmd tap-relative "${x_fraction}" "${y_fraction}" >/dev/null
+  clear_with_backspace "${TARGET_SERIAL}" 96
+  ui_cmd set-text-relative "${x_fraction}" "${y_fraction}" "${value}" >/dev/null
 }
 
 wait_for_visible_text() {
@@ -87,18 +123,56 @@ wait_for_visible_text() {
   ui_cmd wait-text-contains --timeout "${timeout_seconds}" "${needle}" >/dev/null
 }
 
-termux_ui_text_state() {
+wait_for_field_text() {
+  local content_desc="${1}"
+  local expected_text="${2}"
+  local timeout_seconds="${3:-20}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local observed_text
+
+  while (( SECONDS < deadline )); do
+    observed_text=$(ui_cmd get-text-desc "${content_desc}" 2>/dev/null || true)
+    if [[ "${observed_text}" == *"${expected_text}"* ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Field ${content_desc} did not contain expected text: ${expected_text}" >&2
+  return 1
+}
+
+require_field_text_absent() {
+  local content_desc="${1}"
+  local unexpected_text="${2}"
+  local timeout_seconds="${3:-20}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local observed_text
+
+  while (( SECONDS < deadline )); do
+    observed_text=$(ui_cmd get-text-desc "${content_desc}" 2>/dev/null || true)
+    if [[ "${observed_text}" != *"${unexpected_text}"* ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Field ${content_desc} still contained unexpected text: ${unexpected_text}" >&2
+  return 1
+}
+
+window_ui_text_state() {
   local needle="${1}"
   local dump_path="/data/local/tmp/vibetap-live-proof-window.xml"
   local dump_output
 
   if ! "${ADB}" -s "${TARGET_SERIAL}" shell uiautomator dump "${dump_path}" >/dev/null 2>&1; then
-    echo "Failed to inspect Termux UI: uiautomator dump failed." >&2
+    echo "Failed to inspect UI hierarchy: uiautomator dump failed." >&2
     exit 1
   fi
 
   if ! dump_output=$("${ADB}" -s "${TARGET_SERIAL}" exec-out cat "${dump_path}"); then
-    echo "Failed to inspect Termux UI: could not read ${dump_path}." >&2
+    echo "Failed to inspect UI hierarchy: could not read ${dump_path}." >&2
     exit 1
   fi
 
@@ -107,6 +181,11 @@ termux_ui_text_state() {
   else
     printf 'absent\n'
   fi
+}
+
+termux_ui_text_state() {
+  local needle="${1}"
+  window_ui_text_state "${needle}"
 }
 
 require_termux_text_absent() {
@@ -140,25 +219,63 @@ prepare_termux_phase() {
 
   reset_termux_session
   require_termux_text_absent "${expected_absent_text}"
-  clear_with_backspace "${TARGET_SERIAL}" 200
+  clear_with_backspace "${TARGET_SERIAL}" 96
   require_termux_text_absent "${expected_absent_text}"
 }
 
-enter_text_with_keyboard() {
+ensure_docked_keyboard() {
+  ui_cmd tap-relative 0.704 0.106 >/dev/null
+  sleep 1
+}
+
+ensure_floating_keyboard() {
+  if [[ "$(window_ui_text_state "Float")" == "present" ]]; then
+    tap_vibetap_settings_desc "Keyboard float key"
+    sleep 1
+  fi
+}
+
+prepare_settings_proof_field_phase() {
+  local content_desc="${1}"
+  local x_fraction="${2}"
+  local y_fraction="${3}"
+  local expected_absent_text="${4}"
+
+  set_phase prepare_settings_proof_field_phase_launch_activity
+  launch_main_activity "${TARGET_SERIAL}" >/dev/null
+  sleep 2
+  save_screenshot "prepare-field-after-launch"
+
+  set_phase prepare_settings_proof_field_phase_tap_field
+  if ! ui_cmd tap-desc "${content_desc}" >/dev/null 2>&1; then
+    ui_cmd tap-relative "${x_fraction}" "${y_fraction}" >/dev/null
+  fi
+  save_screenshot "prepare-field-after-tap"
+
+  set_phase prepare_settings_proof_field_phase_clear_field
+  clear_with_backspace "${TARGET_SERIAL}" 96
+  save_screenshot "prepare-field-after-clear"
+
+  set_phase prepare_settings_proof_field_phase_check_stale_text
+  require_field_text_absent "${content_desc}" "${expected_absent_text}"
+}
+
+enter_text_with_settings_keyboard() {
   local text="${1}"
   local character
 
   for ((index = 0; index < ${#text}; index++)); do
     character="${text:index:1}"
+    set_phase "run_keyboard_typing_phase_key_${index}_${character// /space}"
     case "${character}" in
       ' ')
-        ui_cmd tap-desc "Keyboard space key" >/dev/null
+        tap_vibetap_settings_desc "Keyboard space key"
         ;;
       [A-Z])
-        ui_cmd tap-desc "Keyboard letter ${character} key" >/dev/null
+        tap_vibetap_settings_desc "Keyboard letter ${character} key"
         ;;
       [a-z])
-        ui_cmd tap-desc "Keyboard letter ${character^^} key" >/dev/null
+        tap_vibetap_settings_desc "Keyboard letter ${character^^} key"
         ;;
       *)
         echo "Unsupported keyboard proof character: ${character}" >&2
@@ -207,12 +324,16 @@ run_audio_feed_command() {
 }
 
 configure_settings_screen() {
+  set_phase configure_settings_screen
   launch_main_activity "${TARGET_SERIAL}" >/dev/null
-  ui_cmd wait-text "VibeTap Keyboard Settings" >/dev/null
-  set_field_text "OpenAI API Key input" "${VIBETAP_OPENAI_API_KEY}"
-  set_field_text "Preset label input ship-pr" "${VIBETAP_SAVED_PHRASE_LABEL}"
-  set_field_text "Preset text input ship-pr" "${VIBETAP_SAVED_PHRASE_TEXT}"
-  ui_cmd tap-desc "Save preset ship-pr" >/dev/null
+  sleep 2
+  set_field_text "${SETTINGS_API_KEY_FIELD_DESC}" "${VIBETAP_OPENAI_API_KEY}"
+  wait_for_field_text "${SETTINGS_API_KEY_FIELD_DESC}" "${VIBETAP_OPENAI_API_KEY}"
+  set_field_text "${SETTINGS_LABEL_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_LABEL}"
+  wait_for_field_text "${SETTINGS_LABEL_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_LABEL}"
+  set_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_TEXT}"
+  wait_for_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_TEXT}"
+  ui_cmd tap-desc "${SETTINGS_SAVE_PRESET_DESC}" >/dev/null
   save_screenshot "settings-configured"
 }
 
@@ -251,6 +372,7 @@ prepare_emulator_and_builds() {
   }
 
   "${ADB}" -s "${TARGET_SERIAL}" install -r "${APP_APK_PATH}" >/dev/null
+  "${ADB}" -s "${TARGET_SERIAL}" shell pm clear "${APP_ID}" >/dev/null 2>&1 || true
   "${ADB}" -s "${TARGET_SERIAL}" install -r "${VIBETAP_TERMUX_APK_PATH}" >/dev/null
   "${ADB}" -s "${TARGET_SERIAL}" shell pm grant "${APP_ID}" android.permission.RECORD_AUDIO >/dev/null 2>&1 || true
   "${ADB}" -s "${TARGET_SERIAL}" shell ime enable "${IME_ID}" >/dev/null
@@ -259,41 +381,58 @@ prepare_emulator_and_builds() {
 }
 
 run_keyboard_typing_phase() {
-  prepare_termux_phase "${VIBETAP_TYPED_SENTINEL}"
-  enter_text_with_keyboard "${VIBETAP_TYPED_SENTINEL}"
-  wait_for_visible_text "${VIBETAP_TYPED_SENTINEL}" 20
+  set_phase run_keyboard_typing_phase
+  local typing_sentinel_compact="${VIBETAP_TYPED_SENTINEL// /}"
+  set_phase run_keyboard_typing_phase_prepare_field
+  prepare_settings_proof_field_phase "${SETTINGS_PROOF_FIELD_DESC}" "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${typing_sentinel_compact}"
+  set_phase run_keyboard_typing_phase_ensure_docked
+  ensure_docked_keyboard
+  set_phase run_keyboard_typing_phase_enter_text
+  enter_text_with_settings_keyboard "${typing_sentinel_compact}"
+  sleep 1
+  set_phase run_keyboard_typing_phase_assert_text
+  wait_for_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${typing_sentinel_compact}" 15
+  set_phase run_keyboard_typing_phase_capture
   save_screenshot "typed-proof"
 }
 
 run_dictation_phase() {
+  set_phase run_dictation_phase
   DICTATION_LOGCAT_PATH="${EVIDENCE_DIR}/dictation-logcat.txt"
   : > "${DICTATION_LOGCAT_PATH}"
-  prepare_termux_phase "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}"
+  prepare_settings_proof_field_phase "${SETTINGS_PROOF_FIELD_DESC}" "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}"
+  ensure_docked_keyboard
   "${ADB}" -s "${TARGET_SERIAL}" logcat -c >/dev/null 2>&1 || true
 
-  ui_cmd tap-desc "Keyboard mic key" >/dev/null
+  tap_vibetap_settings_desc "Keyboard mic key"
   sleep 2
   run_audio_feed_command
   sleep 1
-  ui_cmd tap-desc "Keyboard mic key" >/dev/null || true
+  tap_vibetap_settings_desc "Keyboard mic key" || true
   sleep 2
+  save_screenshot "dictation-attempt"
 
   "${ADB}" -s "${TARGET_SERIAL}" logcat -d > "${DICTATION_LOGCAT_PATH}" || true
 
-  if wait_for_visible_text "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}" 60; then
+  record_mediarecorder_blocker_if_present
+  if wait_for_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${VIBETAP_EXPECTED_DICTATION_SUBSTRING}" 15; then
     save_screenshot "dictation-proof"
     return 0
   fi
 
-  record_mediarecorder_blocker_if_present
-  record_blocker "audio-injection-failed" "Expected dictated text did not appear in Termux."
+  record_blocker "audio-injection-failed" "Expected dictated text did not appear in the settings proof field before blocker classification."
 }
 
 run_saved_phrase_phase() {
-  prepare_termux_phase "${VIBETAP_SAVED_PHRASE_TEXT}"
-  ui_cmd tap-desc "Keyboard float key" >/dev/null
-  ui_cmd tap-text "${VIBETAP_SAVED_PHRASE_LABEL}" >/dev/null
-  wait_for_visible_text "${VIBETAP_SAVED_PHRASE_TEXT}" 20
+  set_phase run_saved_phrase_phase
+  prepare_settings_proof_field_phase "${SETTINGS_PROOF_FIELD_DESC}" "${TYPING_PROOF_FIELD_X}" "${TYPING_PROOF_FIELD_Y}" "${VIBETAP_SAVED_PHRASE_TEXT}"
+  ensure_floating_keyboard
+  set_phase run_saved_phrase_phase_tap_skill
+  tap_vibetap_floating_skill 0
+  sleep 1
+  set_phase run_saved_phrase_phase_assert_text
+  wait_for_field_text "${SETTINGS_PROOF_FIELD_DESC}" "${VIBETAP_SAVED_PHRASE_TEXT}" 15
+  set_phase run_saved_phrase_phase_capture
   save_screenshot "saved-phrase-proof"
 }
 
@@ -313,8 +452,8 @@ main() {
   prepare_emulator_and_builds
   configure_settings_screen
   run_keyboard_typing_phase
-  run_dictation_phase
   run_saved_phrase_phase
+  run_dictation_phase
 
   echo "Live proof passed. Evidence: ${EVIDENCE_DIR}"
 }
