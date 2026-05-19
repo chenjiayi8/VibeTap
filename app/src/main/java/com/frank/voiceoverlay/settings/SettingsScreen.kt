@@ -76,6 +76,11 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(
+                    text = "Keyboard mode is for typing and dictation. Action mode shows bubbles only.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
                         onClick = onOpenKeyboardSettings,
