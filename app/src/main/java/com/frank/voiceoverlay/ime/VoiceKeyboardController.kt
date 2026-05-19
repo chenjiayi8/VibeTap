@@ -67,7 +67,11 @@ class VoiceKeyboardController(
                     return@launch
                 }
                 mutableUiState.update { state ->
-                    state.copy(skillBubbles = shortcuts, statusMessage = null)
+                    state.copy(
+                        skillBubbles = shortcuts,
+                        statusMessage = null,
+                        statusTone = ImeStatusTone.Neutral,
+                    )
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -98,6 +102,7 @@ class VoiceKeyboardController(
                     KeyboardLayoutMode.FLOATING -> KeyboardLayoutMode.DOCKED
                 },
                 statusMessage = null,
+                statusTone = ImeStatusTone.Neutral,
             )
         }
     }
@@ -106,11 +111,7 @@ class VoiceKeyboardController(
         when (recordingState.value) {
             RecordingState.IDLE -> runMicAction(startRecording)
             RecordingState.LISTENING -> runMicAction(stopRecording)
-            RecordingState.PROCESSING -> {
-                mutableUiState.update { state ->
-                    state.copy(statusMessage = "Still processing the previous recording.")
-                }
-            }
+            RecordingState.PROCESSING -> setNeutralStatus("Still processing the previous recording.")
             RecordingState.ERROR -> {
                 try {
                     resetRecording()
@@ -130,9 +131,7 @@ class VoiceKeyboardController(
             if (didCommit) {
                 clearStatus()
             } else {
-                mutableUiState.update { state ->
-                    state.copy(statusMessage = "No active text field for phrase insertion.")
-                }
+                setNeutralStatus("No active text field for phrase insertion.")
             }
         } catch (error: CancellationException) {
             throw error
@@ -154,13 +153,28 @@ class VoiceKeyboardController(
 
     private fun clearStatus() {
         mutableUiState.update { state ->
-            state.copy(statusMessage = null)
+            state.copy(
+                statusMessage = null,
+                statusTone = ImeStatusTone.Neutral,
+            )
+        }
+    }
+
+    private fun setNeutralStatus(message: String) {
+        mutableUiState.update { state ->
+            state.copy(
+                statusMessage = message,
+                statusTone = ImeStatusTone.Neutral,
+            )
         }
     }
 
     private fun setStatus(message: String?) {
         mutableUiState.update { state ->
-            state.copy(statusMessage = message ?: "Something went wrong.")
+            state.copy(
+                statusMessage = message ?: "Something went wrong.",
+                statusTone = ImeStatusTone.Error,
+            )
         }
     }
 }

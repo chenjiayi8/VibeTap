@@ -229,7 +229,10 @@ ensure_docked_keyboard() {
 }
 
 ensure_floating_keyboard() {
-  if [[ "$(window_ui_text_state "Float")" == "present" ]]; then
+  if [[ "$(window_ui_text_state "Actions")" == "present" ]]; then
+    tap_vibetap_settings_desc "Keyboard actions key"
+    sleep 1
+  elif [[ "$(window_ui_text_state "Float")" == "present" ]]; then
     tap_vibetap_settings_desc "Keyboard float key"
     sleep 1
   fi

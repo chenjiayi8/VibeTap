@@ -24,5 +24,9 @@ ANDROID_SERIAL="${TARGET_SERIAL}" gradlew_cmd :app:testDebugUnitTest :app:assemb
 "${ADB}" -s "${TARGET_SERIAL}" install -r "${PROJECT_ROOT}/app/build/outputs/apk/debug/app-debug.apk"
 launch_main_activity "${TARGET_SERIAL}"
 
+SCREENSHOT_NAME="${VIBETAP_EMULATOR_SCREENSHOT_NAME:-emulator-$(date +%Y%m%d-%H%M%S)-main-activity}"
+sleep 2
+ANDROID_SERIAL="${TARGET_SERIAL}" bash "${SCRIPT_DIR}/capture-evidence.sh" screenshot "${SCREENSHOT_NAME}"
+
 echo "Emulator verification complete."
-echo "Next: use scripts/android/capture-evidence.sh screenshot <name> for artifacts."
+echo "Saved verification screenshot to captures/android/${SCREENSHOT_NAME}.png"

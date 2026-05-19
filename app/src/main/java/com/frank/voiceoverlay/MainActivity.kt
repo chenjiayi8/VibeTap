@@ -7,7 +7,7 @@ import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
+import com.frank.voiceoverlay.ime.ui.VibeTapTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.app.ActivityCompat
@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val uiState by settingsViewModel.uiState.collectAsState()
-            MaterialTheme {
+            VibeTapTheme {
                 SettingsScreen(
                     uiState = uiState,
                     onApiKeyChanged = settingsViewModel::onApiKeyChanged,

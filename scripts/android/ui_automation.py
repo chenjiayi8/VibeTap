@@ -269,6 +269,7 @@ def _keyboard_letter_point(letter: str, bounds: Rect) -> tuple[int, int]:
 def vibetap_desc_tap_point(content_desc: str, bounds: Rect) -> tuple[int, int]:
     direct_points = {
         "Keyboard mic key": (0.167, 0.734),
+        "Keyboard actions key": (0.500, 0.734),
         "Keyboard float key": (0.500, 0.734),
         "Keyboard backspace key": (0.833, 0.734),
         "Keyboard space key": (0.442, 0.972),
@@ -302,6 +303,7 @@ def _settings_keyboard_letter_point(letter: str, bounds: Rect) -> tuple[int, int
 def vibetap_settings_desc_tap_point(content_desc: str, bounds: Rect) -> tuple[int, int]:
     direct_points = {
         "Keyboard mic key": (0.141, 0.724),
+        "Keyboard actions key": (0.409, 0.724),
         "Keyboard float key": (0.409, 0.724),
         "Keyboard backspace key": (0.702, 0.724),
         "Keyboard space key": (0.432, 0.931),

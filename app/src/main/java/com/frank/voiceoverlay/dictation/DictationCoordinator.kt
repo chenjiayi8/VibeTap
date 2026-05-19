@@ -52,7 +52,11 @@ class DictationCoordinator(
             audioFile = recorder.stop()
             val transcript = transcribeFile(audioFile)
             val cleanedText = cleanText(transcript)
-            insertText(cleanedText)
+            val finalText = DictationCleanupPolicy.finalize(
+                rawTranscript = transcript,
+                cleanedCandidate = cleanedText,
+            )
+            insertText(finalText)
         } catch (error: Throwable) {
             pendingError = error
         }

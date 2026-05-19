@@ -9,10 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -24,6 +20,9 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import com.frank.voiceoverlay.ime.ImeStatusTone
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -32,6 +31,7 @@ import kotlin.math.roundToInt
 fun FloatingSkillPanel(
     skillBubbles: List<ShortcutPreset>,
     statusMessage: String?,
+    statusTone: ImeStatusTone = ImeStatusTone.Neutral,
     onMicTapped: () -> Unit,
     onDockTapped: () -> Unit,
     onSkillBubbleTapped: (ShortcutPreset) -> Unit,
@@ -52,7 +52,7 @@ fun FloatingSkillPanel(
         val maxOffsetX = max(0, viewportWidthPx - panelWidthPx)
         val maxOffsetY = max(0, viewportHeightPx - panelHeightPx)
 
-        Surface(
+        Column(
             modifier = Modifier
                 .offset { IntOffset(offsetX, offsetY) }
                 .onSizeChanged { size ->
@@ -68,62 +68,60 @@ fun FloatingSkillPanel(
                         offsetY = (offsetY + dragAmount.y.roundToInt()).coerceIn(0, maxOffsetY)
                     }
                 }
-                .testTag("floating_skill_panel"),
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 4.dp,
-            shadowElevation = 4.dp,
+                .testTag("floating_skill_panel")
+                .padding(4.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                ImeActionButton(
+                    label = "Mic",
+                    onClick = onMicTapped,
+                    prominence = ImeActionProminence.Primary,
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .testTag("bubble_primary_mic"),
+                )
+                ImeActionButton(
+                    label = "Keyboard",
+                    onClick = onDockTapped,
+                    prominence = ImeActionProminence.Tertiary,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("bubble_mode_switch"),
+                )
+            }
+
+            if (skillBubbles.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Button(
-                        onClick = onMicTapped,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("floating_mic"),
-                    ) {
-                        Text(text = "Mic")
-                    }
-                    Button(
-                        onClick = onDockTapped,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("floating_dock"),
-                    ) {
-                        Text(text = "Dock")
+                    skillBubbles.take(3).forEach { preset ->
+                        ImeActionButton(
+                            label = preset.label,
+                            onClick = { onSkillBubbleTapped(preset) },
+                            prominence = ImeActionProminence.Secondary,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("bubble_skill_${preset.id}"),
+                        )
                     }
                 }
+            }
 
-                if (skillBubbles.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        skillBubbles.take(3).forEach { preset ->
-                            Button(
-                                onClick = { onSkillBubbleTapped(preset) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("floating_skill_${preset.id}"),
-                            ) {
-                                Text(text = preset.label)
-                            }
-                        }
-                    }
-                }
-
-                statusMessage?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+            statusMessage?.let { message ->
+                Text(
+                    text = message,
+                    color = when (statusTone) {
+                        ImeStatusTone.Neutral -> MaterialTheme.colorScheme.onSurfaceVariant
+                        ImeStatusTone.Error -> MaterialTheme.colorScheme.error
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                )
             }
         }
     }

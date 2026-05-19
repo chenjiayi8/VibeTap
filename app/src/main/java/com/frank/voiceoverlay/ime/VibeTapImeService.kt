@@ -3,7 +3,7 @@ package com.frank.voiceoverlay.ime
 import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import androidx.compose.material3.MaterialTheme
+import com.frank.voiceoverlay.ime.ui.VibeTapTheme
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.Lifecycle
@@ -63,7 +63,7 @@ class VibeTapImeService : InputMethodService() {
             this@VibeTapImeService.window?.window?.decorView?.let(owners::installOn)
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                MaterialTheme {
+                VibeTapTheme {
                     VibeTapImeRoot(
                         controller = controller,
                         onBackspace = { committer.backspace() },

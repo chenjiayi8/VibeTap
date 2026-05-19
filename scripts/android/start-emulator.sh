@@ -71,6 +71,75 @@ find_matching_emulator() {
   return 1
 }
 
+serial_console_port() {
+  local serial="${1}"
+
+  [[ "${serial}" == emulator-* ]] || return 1
+  printf '%s\n' "${serial#emulator-}"
+}
+
+emulator_pid_for_serial() {
+  local serial="${1}"
+  local console_port pid
+
+  console_port=$(serial_console_port "${serial}") || return 1
+
+  if command -v lsof >/dev/null 2>&1; then
+    pid=$(lsof -nP -iTCP:"${console_port}" -sTCP:LISTEN -t 2>/dev/null | head -n 1 || true)
+    if [[ -n "${pid}" ]]; then
+      printf '%s\n' "${pid}"
+      return 0
+    fi
+  fi
+
+  if command -v ss >/dev/null 2>&1; then
+    pid=$(ss -lptn "sport = :${console_port}" 2>/dev/null | sed -nE 's/.*pid=([0-9]+).*/\1/p' | head -n 1 || true)
+    if [[ -n "${pid}" ]]; then
+      printf '%s\n' "${pid}"
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+emulator_process_command_line() {
+  local pid="${1}"
+
+  if [[ -r "/proc/${pid}/cmdline" ]]; then
+    tr '\0' ' ' < "/proc/${pid}/cmdline" | sed 's/[[:space:]]\+$//'
+    return 0
+  fi
+
+  ps -p "${pid}" -o args= 2>/dev/null | sed 's/^[[:space:]]*//'
+}
+
+ensure_audio_capable_emulator_reuse() {
+  local serial="${1}"
+  local pid cmdline
+
+  [[ "${REQUIRE_AUDIO}" == "true" ]] || return 0
+
+  pid=$(emulator_pid_for_serial "${serial}" || true)
+  if [[ -z "${pid}" ]]; then
+    echo "Audio-required emulator reuse refused: could not verify how ${serial} was launched. Stop it and rerun so a new audio-capable emulator can be launched." >&2
+    exit 1
+  fi
+
+  cmdline=$(emulator_process_command_line "${pid}" || true)
+  if [[ -z "${cmdline}" ]]; then
+    echo "Audio-required emulator reuse refused: could not inspect emulator process ${pid} for ${serial}. Stop it and rerun so a new audio-capable emulator can be launched." >&2
+    exit 1
+  fi
+
+  case " ${cmdline} " in
+    *" -no-window "*|*" -no-audio "*)
+    echo "Audio-required emulator reuse refused: ${serial} was started headlessly or without audio (${cmdline}). Stop it and rerun so a graphical audio-capable emulator can be launched." >&2
+    exit 1
+    ;;
+  esac
+}
+
 wait_for_launched_emulator_serial() {
   local adb="${1}"
   local target_avd="${2}"
@@ -140,6 +209,7 @@ set -e
 
 if [[ "${MATCHING_STATUS}" -eq 0 ]]; then
   IFS=$'\t' read -r TARGET_SERIAL TARGET_STATE <<< "${MATCHING_EMULATOR}"
+  ensure_audio_capable_emulator_reuse "${TARGET_SERIAL}"
   if [[ "${TARGET_STATE}" == "device" ]]; then
     echo "An emulator for ${AVD_NAME} is already running (${TARGET_SERIAL}). Reusing the active emulator."
   else

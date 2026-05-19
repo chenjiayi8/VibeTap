@@ -2,6 +2,7 @@ package com.frank.voiceoverlay.ime.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 private val keyboardRows = listOf(
@@ -24,6 +26,7 @@ private val keyboardRows = listOf(
 
 @Composable
 fun DockedKeyboardView(
+    bottomInsetPadding: Dp,
     onMicTapped: () -> Unit,
     onLayoutToggle: () -> Unit,
     onBackspace: () -> Boolean,
@@ -31,22 +34,26 @@ fun DockedKeyboardView(
     onCommitLetter: (String) -> Boolean,
     onCommitPhrase: (String) -> Boolean,
 ) {
-    Column(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp + bottomInsetPadding)
+            .testTag("docked_keyboard_root")
+            .semantics { testTagsAsResourceId = true },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             KeyButton(label = "Mic", onClick = onMicTapped)
-            KeyButton(label = "Float", onClick = onLayoutToggle)
-            KeyButton(label = "⌫", onClick = { onBackspace() })
+            KeyButton(label = "Actions", onClick = onLayoutToggle)
         }
 
         keyboardRows.forEach { rowLetters ->
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 rowLetters.forEach { letter ->
                     KeyButton(label = letter.toString(), onClick = { onCommitLetter(letter.toString()) })
@@ -55,13 +62,12 @@ fun DockedKeyboardView(
         }
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            KeyButton(label = "Space", onClick = { onCommitPhrase(" ") }, weight = 2f)
-            KeyButton(label = "Enter", onClick = { onEnter() })
+            KeyButton(label = "Space", onClick = { onCommitPhrase(" ") }, weight = 2.2f)
+            KeyButton(label = "Enter", onClick = { onEnter() }, weight = 1f)
+            KeyButton(label = "⌫", onClick = { onBackspace() }, weight = 0.8f)
         }
     }
 }
@@ -78,6 +84,7 @@ private fun RowScope.KeyButton(
             .weight(weight)
             .testTag(keyTag(label))
             .semantics { contentDescription = keyContentDescription(label) },
+        contentPadding = PaddingValues(vertical = 14.dp),
     ) {
         Text(text = label)
     }
@@ -85,7 +92,7 @@ private fun RowScope.KeyButton(
 
 private fun keyTag(label: String): String = when (label) {
     "Mic" -> "key_mic"
-    "Float" -> "key_float"
+    "Actions" -> "key_actions"
     "⌫" -> "key_backspace"
     "Space" -> "key_space"
     "Enter" -> "key_enter"
@@ -94,7 +101,7 @@ private fun keyTag(label: String): String = when (label) {
 
 private fun keyContentDescription(label: String): String = when (label) {
     "Mic" -> "Keyboard mic key"
-    "Float" -> "Keyboard float key"
+    "Actions" -> "Keyboard actions key"
     "⌫" -> "Keyboard backspace key"
     "Space" -> "Keyboard space key"
     "Enter" -> "Keyboard enter key"
