@@ -1,6 +1,5 @@
 package com.frank.voiceoverlay.ime
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +16,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.frank.voiceoverlay.dictation.RecordingState
 import com.frank.voiceoverlay.ime.ui.FloatingSkillPanel
 import com.frank.voiceoverlay.ime.ui.VibeTapImeRoot
+import com.frank.voiceoverlay.ime.ui.VibeTapTheme
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
 import com.frank.voiceoverlay.testing.TestComposeActivity
 import kotlinx.coroutines.CoroutineScope
@@ -34,17 +34,17 @@ class FloatingSkillPanelTest {
     val composeRule = createAndroidComposeRule<TestComposeActivity>()
 
     @Test
-    fun floatingSkillPanelShowsMicDockAndOnlyThreeSkillBubbles() {
+    fun floatingSkillPanelShowsPrimaryMicKeyboardSwitchAndThreeActionBubbles() {
         var micTapCount by mutableIntStateOf(0)
         var dockTapCount by mutableIntStateOf(0)
         var tappedSkillLabel by mutableStateOf<String?>(null)
 
         composeRule.setContent {
-            MaterialTheme {
+            VibeTapTheme {
                 FloatingSkillPanel(
                     skillBubbles = listOf(
-                        preset("ship", "Ship", 0),
-                        preset("review", "Review", 1),
+                        preset("ship-pr", "Ship PR", 0),
+                        preset("review-pr", "Review PR", 1),
                         preset("proceed", "Proceed", 2),
                         preset("extra", "Extra", 3),
                     ),
@@ -56,34 +56,35 @@ class FloatingSkillPanelTest {
             }
         }
 
-        listOf("Mic", "Dock", "Ship", "Review", "Proceed", "Listening for your next instruction").forEach { label ->
-            composeRule.onNodeWithText(label).assertIsDisplayed()
-        }
+        composeRule.onNodeWithTag("bubble_primary_mic").assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithTag("bubble_mode_switch").assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithTag("bubble_skill_ship-pr").assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithTag("bubble_skill_review-pr").assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithTag("bubble_skill_proceed").assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText("Keyboard").assertIsDisplayed()
+        composeRule.onNodeWithText("Listening for your next instruction").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Dock").assertCountEquals(0)
         composeRule.onAllNodesWithText("Extra").assertCountEquals(0)
         composeRule.onAllNodesWithText("Q").assertCountEquals(0)
         composeRule.onAllNodesWithText("Space").assertCountEquals(0)
 
-        listOf("floating_mic", "floating_dock", "floating_skill_ship", "floating_skill_review", "floating_skill_proceed").forEach { tag ->
-            composeRule.onNodeWithTag(tag).assertHasClickAction()
-        }
-
-        composeRule.onNodeWithTag("floating_mic").performClick()
-        composeRule.onNodeWithTag("floating_dock").performClick()
-        composeRule.onNodeWithTag("floating_skill_ship").performClick()
+        composeRule.onNodeWithTag("bubble_primary_mic").performClick()
+        composeRule.onNodeWithTag("bubble_mode_switch").performClick()
+        composeRule.onNodeWithTag("bubble_skill_ship-pr").performClick()
 
         composeRule.runOnIdle {
             check(micTapCount == 1) { "Expected Mic to be clicked once, was $micTapCount" }
-            check(dockTapCount == 1) { "Expected Dock to be clicked once, was $dockTapCount" }
-            check(tappedSkillLabel == "Ship") { "Expected Ship callback, was $tappedSkillLabel" }
+            check(dockTapCount == 1) { "Expected Keyboard switch to be clicked once, was $dockTapCount" }
+            check(tappedSkillLabel == "Ship PR") { "Expected Ship PR callback, was $tappedSkillLabel" }
         }
     }
 
     @Test
-    fun imeRootFloatingModeRendersOnlyFloatingPanelWithoutDockedKeyboard() {
+    fun imeRootFloatingModeDoesNotShowKeyboardLettersOrSpaceRow() {
         val controller = createController(
             presets = listOf(
-                preset("ship", "Ship", 0),
-                preset("review", "Review", 1),
+                preset("ship-pr", "Ship PR", 0),
+                preset("review-pr", "Review PR", 1),
                 preset("proceed", "Proceed", 2),
             ),
         )
@@ -92,7 +93,7 @@ class FloatingSkillPanelTest {
         controller.bind(scope)
 
         composeRule.setContent {
-            MaterialTheme {
+            VibeTapTheme {
                 VibeTapImeRoot(
                     controller = controller,
                     onBackspace = { true },
@@ -106,17 +107,16 @@ class FloatingSkillPanelTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             controller.uiState.value.skillBubbles.size == 3
         }
-        composeRule.runOnIdle {
-            controller.onLayoutToggle()
-        }
+        composeRule.runOnIdle { controller.onLayoutToggle() }
 
-        listOf("Mic", "Dock", "Ship", "Review", "Proceed").forEach { label ->
-            composeRule.onNodeWithText(label).assertIsDisplayed()
-        }
-        composeRule.onAllNodesWithText("Float").assertCountEquals(0)
+        composeRule.onNodeWithTag("bubble_primary_mic").assertIsDisplayed()
+        composeRule.onNodeWithTag("bubble_mode_switch").assertIsDisplayed()
+        composeRule.onNodeWithTag("bubble_skill_ship-pr").assertIsDisplayed()
+        composeRule.onNodeWithTag("bubble_skill_review-pr").assertIsDisplayed()
+        composeRule.onNodeWithTag("bubble_skill_proceed").assertIsDisplayed()
         composeRule.onAllNodesWithText("Q").assertCountEquals(0)
         composeRule.onAllNodesWithText("Space").assertCountEquals(0)
-        composeRule.onAllNodesWithText("Mic").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Float").assertCountEquals(0)
 
         scope.cancel()
     }

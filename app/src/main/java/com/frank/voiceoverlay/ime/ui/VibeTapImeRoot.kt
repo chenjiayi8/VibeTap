@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.frank.voiceoverlay.ime.ImeStatusTone
 import com.frank.voiceoverlay.ime.KeyboardLayoutMode
 import com.frank.voiceoverlay.ime.VoiceKeyboardController
 import kotlinx.coroutines.launch
@@ -51,7 +52,10 @@ fun VibeTapImeRoot(
                 uiState.statusMessage?.let { message ->
                     Text(
                         text = message,
-                        color = MaterialTheme.colorScheme.error,
+                        color = when (uiState.statusTone) {
+                            ImeStatusTone.Neutral -> MaterialTheme.colorScheme.onSurfaceVariant
+                            ImeStatusTone.Error -> MaterialTheme.colorScheme.error
+                        },
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -61,6 +65,7 @@ fun VibeTapImeRoot(
         KeyboardLayoutMode.FLOATING -> FloatingSkillPanel(
             skillBubbles = uiState.skillBubbles,
             statusMessage = uiState.statusMessage,
+            statusTone = uiState.statusTone,
             onMicTapped = {
                 coroutineScope.launch {
                     controller.onMicTapped()
@@ -72,7 +77,9 @@ fun VibeTapImeRoot(
                     controller.onSkillBubbleTapped(preset)
                 }
             },
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
         )
     }
 }
