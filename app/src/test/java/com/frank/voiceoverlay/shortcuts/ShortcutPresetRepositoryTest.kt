@@ -21,20 +21,20 @@ class ShortcutPresetRepositoryTest {
             listOf(
                 ShortcutPreset(
                     id = "ship-pr",
-                    label = "Ship-PR",
-                    text = "Good, please proceed to use \$ship-pr",
+                    label = "Ship PR",
+                    text = "Please ship the PR after checks pass.",
                     order = 0,
                 ),
                 ShortcutPreset(
-                    id = "review",
-                    label = "Review",
-                    text = "Please review the latest changes carefully.",
+                    id = "review-pr",
+                    label = "Review PR",
+                    text = "Please review the PR and call out the highest-risk issues first.",
                     order = 1,
                 ),
                 ShortcutPreset(
                     id = "proceed",
                     label = "Proceed",
-                    text = "Good, please proceed.",
+                    text = "Please proceed with the approved plan.",
                     order = 2,
                 ),
             ),
@@ -59,9 +59,9 @@ class ShortcutPresetRepositoryTest {
         )
 
         val unsortedPresets = listOf(
-            ShortcutPreset("proceed", "Proceed", "Good, please proceed.", 2),
-            ShortcutPreset("ship-pr", "Ship-PR", "Good, please proceed to use \$ship-pr", 0),
-            ShortcutPreset("review", "Review", "Please review the latest changes carefully.", 1),
+            ShortcutPreset("proceed", "Proceed", "Please proceed with the approved plan.", 2),
+            ShortcutPreset("ship-pr", "Ship PR", "Please ship the PR after checks pass.", 0),
+            ShortcutPreset("review-pr", "Review PR", "Please review the PR and call out the highest-risk issues first.", 1),
         )
 
         repository.savePresets(unsortedPresets)

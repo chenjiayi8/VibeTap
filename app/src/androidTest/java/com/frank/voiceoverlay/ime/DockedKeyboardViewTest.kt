@@ -100,6 +100,7 @@ class DockedKeyboardViewTest {
 
         composeRule.onNodeWithText("Actions").assertIsDisplayed()
         composeRule.onAllNodesWithText("Float").assertCountEquals(0)
+        composeRule.onAllNodesWithText("Keyboard").assertCountEquals(0)
     }
 
     @Test

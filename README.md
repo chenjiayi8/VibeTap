@@ -37,21 +37,18 @@ Security note: this is a personal-use prototype. The key is stored on-device and
 ## Keyboard behavior
 
 ### Dictation
-
-The keyboard runtime is implemented with these interaction rules:
-
 - **Mic tap when idle**: start recording, but only if an OpenAI API key is present.
 - **Mic tap while listening**: stop recording and begin processing.
 - **While processing**: another tap does not start a new recording; the UI reports that the previous recording is still processing.
-- **If recording reaches an error state**: a tap resets the controller back to idle.
-- **If no API key is configured**: recording is blocked and the keyboard shows `Add an OpenAI API key in settings before dictation.`
-- **If no editor is active**: dictated text and saved phrases fail with an InputConnection-based insertion message.
+- **Cleanup is conservative**: dictated text is only lightly corrected for punctuation, casing, filler words, and duplicate stutters.
+- **Cleanup never answers for the user**: VibeTap does not intentionally convert dictated text into Q&A, bullets, or assistant-style responses.
 
 ### Layouts and saved phrase skills
-
-- **Docked keyboard** keeps dictation controls alongside normal typing actions.
-- **Floating compact panel** gives a smaller voice-first surface when the full keyboard is not needed.
-- **Saved phrase skills** are editable from the settings screen and are committed through the active `InputConnection`.
+- **Keyboard mode** is for typing and dictation.
+- **Bubble mode** is for action bubbles only and does not show typing keys.
+- **Mode switching is manual**.
+- **Docked keyboard** must remain above tablet system navigation UI.
+- **Saved phrase skills** are committed through the current `InputConnection`.
 
 ## Operator setup / verification flow
 
