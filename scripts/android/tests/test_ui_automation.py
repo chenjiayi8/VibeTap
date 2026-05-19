@@ -187,6 +187,7 @@ class UiAutomationTests(unittest.TestCase):
 
     def test_vibetap_desc_tap_point_maps_keyboard_controls(self):
         bounds = parse_bounds("[0,0][1080,2400]")
+        self.assertEqual((540, 1762), vibetap_desc_tap_point("Keyboard actions key", bounds))
         self.assertEqual((540, 1762), vibetap_desc_tap_point("Keyboard float key", bounds))
         self.assertEqual((477, 2333), vibetap_desc_tap_point("Keyboard space key", bounds))
         self.assertEqual((990, 1949), vibetap_desc_tap_point("Keyboard letter P key", bounds))
@@ -202,6 +203,7 @@ class UiAutomationTests(unittest.TestCase):
 
     def test_vibetap_settings_desc_tap_point_maps_settings_keyboard_controls(self):
         bounds = parse_bounds("[0,0][1080,2400]")
+        self.assertEqual((442, 1738), vibetap_settings_desc_tap_point("Keyboard actions key", bounds))
         self.assertEqual((442, 1738), vibetap_settings_desc_tap_point("Keyboard float key", bounds))
         self.assertEqual((467, 2234), vibetap_settings_desc_tap_point("Keyboard space key", bounds))
         self.assertEqual((82, 2148), vibetap_settings_desc_tap_point("Keyboard letter Z key", bounds))
