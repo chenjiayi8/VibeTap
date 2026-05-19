@@ -7,9 +7,8 @@
    - `Keyboard setup`
    - `OpenAI API Key`
    - `Saved phrase skills`
-3. Capture a settings screenshot:
-   - `bash scripts/android/capture-evidence.sh screenshot settings-home`
-   - If more than one device is attached, target the emulator explicitly with `bash scripts/android/capture-evidence.sh --serial <serial> screenshot settings-home` or `ANDROID_SERIAL=<serial> bash scripts/android/capture-evidence.sh screenshot settings-home`.
+3. Confirm the emulator run saved a screenshot under `captures/android/`.
+   - Use `VIBETAP_EMULATOR_SCREENSHOT_NAME=settings-home bash scripts/android/test-emulator.sh` if you want a stable artifact name.
 4. Open Android keyboard settings from the app.
 5. Confirm VibeTap can be enabled as a keyboard.
 6. Open the input-method picker from the app and switch to VibeTap.

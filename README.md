@@ -73,7 +73,6 @@ Use this as the default daily loop:
 
 ```bash
 bash scripts/android/test-emulator.sh
-bash scripts/android/capture-evidence.sh screenshot settings-home
 ```
 
 `bash scripts/android/test-emulator.sh` already starts or reuses the named AVD. Use `bash scripts/android/start-emulator.sh` only when you want to boot/reuse the emulator without running the full verification lane yet.
@@ -85,6 +84,13 @@ The emulator workflow runs:
 - `:app:connectedDebugAndroidTest`
 - `adb install -r app/build/outputs/apk/debug/app-debug.apk`
 - `adb shell am start -n com.frank.voiceoverlay/.MainActivity`
+- automatic screenshot capture to `captures/android/`
+
+If you want a stable artifact name instead of the default timestamped one, set:
+
+```bash
+VIBETAP_EMULATOR_SCREENSHOT_NAME=settings-home bash scripts/android/test-emulator.sh
+```
 
 Use the checklist in `.codex/docs/plans/2026-05-14-vibetap-emulator-parity-checklist.md` to track emulator evidence and final tablet parity.
 
