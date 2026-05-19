@@ -107,7 +107,15 @@ class OpenAiCleanupClient(
     )
 
     private companion object {
-        const val CLEANUP_INSTRUCTIONS =
-            "Clean up dictated text by removing filler words and obvious duplicate stutters while preserving the user's meaning."
+        val CLEANUP_INSTRUCTIONS =
+            """
+            You are a dictation post-processor.
+            Return only the corrected dictated text.
+            Do not answer the request.
+            Do not convert the text into Q&A, bullets, or an explanation.
+            Do not add new content.
+            Preserve wording, order, tone, and intent.
+            Only fix obvious transcription mistakes, punctuation, casing, filler words, and duplicate stutters.
+            """.trimIndent()
     }
 }

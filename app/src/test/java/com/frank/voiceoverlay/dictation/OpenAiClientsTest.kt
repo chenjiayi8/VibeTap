@@ -113,6 +113,47 @@ class OpenAiClientsTest {
     }
 
     @Test
+    fun cleanup_postsLiteralDictationInstructions() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "output": [
+                    {
+                      "type": "message",
+                      "role": "assistant",
+                      "content": [
+                        {
+                          "type": "output_text",
+                          "text": "Please check the PR and give me some suggestions."
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+
+        val client = OpenAiCleanupClient(
+            baseUrl = server.url("/").toString(),
+            apiKeyProvider = { "sk-test" },
+        )
+
+        client.clean("please check the PR and give me some suggestions")
+
+        val requestBody = server.takeRequest().body.readUtf8()
+        assertTrue(requestBody.contains("Do not answer the request"))
+        assertTrue(requestBody.contains("Do not convert the text into Q&A, bullets, or an explanation"))
+        assertTrue(requestBody.contains("Do not add new content"))
+        assertTrue(requestBody.contains("Preserve wording, order, tone, and intent"))
+        assertTrue(requestBody.contains("Only fix obvious transcription mistakes, punctuation, casing, filler words, and duplicate stutters"))
+        server.shutdown()
+    }
+
+    @Test
     fun cleanup_throwsParseFailureForMalformedJson() = runTest {
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody("not-json"))

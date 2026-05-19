@@ -29,6 +29,109 @@ class DictationCoordinatorTest {
     }
 
     @Test
+    fun stopRecording_fallsBackToLiteralTranscript_whenCleanupLooksAssistantLike() = runTest {
+        val fakeRecorder = FakeAudioRecorder()
+        val inserted = mutableListOf<String>()
+        val coordinator = DictationCoordinator(
+            recorder = fakeRecorder,
+            transcribeFile = { "please check the PR and give me some suggestions" },
+            cleanText = { "Q: Please check the PR.\nA: Here are some suggestions." },
+            insertText = { inserted += it },
+            deleteFile = { true },
+        )
+
+        coordinator.startRecording()
+        coordinator.stopRecording()
+
+        assertEquals(
+            listOf("please check the PR and give me some suggestions"),
+            inserted,
+        )
+    }
+
+    @Test
+    fun stopRecording_preservesRawSpacingAndNewlines_whenAssistantLikeCleanupIsRejected() = runTest {
+        val fakeRecorder = FakeAudioRecorder()
+        val inserted = mutableListOf<String>()
+        val rawTranscript = "  hello\n\nworld  "
+        val coordinator = DictationCoordinator(
+            recorder = fakeRecorder,
+            transcribeFile = { rawTranscript },
+            cleanText = { "Here are some suggestions" },
+            insertText = { inserted += it },
+            deleteFile = { true },
+        )
+
+        coordinator.startRecording()
+        coordinator.stopRecording()
+
+        assertEquals(listOf(rawTranscript), inserted)
+    }
+
+    @Test
+    fun stopRecording_fallsBackToBlankTranscript_whenTranscriptHasNoWords() = runTest {
+        val fakeRecorder = FakeAudioRecorder()
+        val inserted = mutableListOf<String>()
+        val rawTranscript = "   "
+        val coordinator = DictationCoordinator(
+            recorder = fakeRecorder,
+            transcribeFile = { rawTranscript },
+            cleanText = { "hello there" },
+            insertText = { inserted += it },
+            deleteFile = { true },
+        )
+
+        coordinator.startRecording()
+        coordinator.stopRecording()
+
+        assertEquals(listOf(rawTranscript), inserted)
+    }
+
+    @Test
+    fun finalize_acceptsPunctuationOnlyCleanup() {
+        assertEquals(
+            "hello world",
+            DictationCleanupPolicy.finalize(
+                rawTranscript = "hello, world",
+                cleanedCandidate = "hello world",
+            ),
+        )
+    }
+
+    @Test
+    fun finalize_acceptsCasingOnlyCleanup() {
+        assertEquals(
+            "Hello world",
+            DictationCleanupPolicy.finalize(
+                rawTranscript = "hello world",
+                cleanedCandidate = "Hello world",
+            ),
+        )
+    }
+
+    @Test
+    fun finalize_fallsBackWhenOverlapIsTooLow() {
+        assertEquals(
+            "please check the PR and give me some suggestions",
+            DictationCleanupPolicy.finalize(
+                rawTranscript = "please check the PR and give me some suggestions",
+                cleanedCandidate = "totally different rewrite text",
+            ),
+        )
+    }
+
+    @Test
+    fun finalize_fallsBackWhenCandidateIsTooLong() {
+        assertEquals(
+            "alpha beta",
+            DictationCleanupPolicy.finalize(
+                rawTranscript = "alpha beta",
+                cleanedCandidate = "alpha beta gamma delta epsilon zeta eta",
+            ),
+        )
+    }
+
+    @Test
     fun stopRecording_deletesFileBeforeReturningToIdle() = runTest {
         val fakeRecorder = FakeAudioRecorder()
         val statesDuringDelete = mutableListOf<RecordingState>()
