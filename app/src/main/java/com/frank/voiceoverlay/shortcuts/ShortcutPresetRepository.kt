@@ -10,7 +10,18 @@ class ShortcutPresetRepository(
 
     suspend fun savePresets(presets: List<ShortcutPreset>) {
         settingsStore.update { settings ->
-            settings.copy(presets = presets.sortedBy(ShortcutPreset::order))
+            settings.copy(presets = presets.normalizedOrder())
         }
     }
+
+    suspend fun addPreset(preset: ShortcutPreset) {
+        settingsStore.update { settings ->
+            settings.copy(presets = (settings.presets + preset).normalizedOrder())
+        }
+    }
+
+    private fun List<ShortcutPreset>.normalizedOrder(): List<ShortcutPreset> =
+        sortedBy(ShortcutPreset::order).mapIndexed { index, preset ->
+            preset.copy(order = index)
+        }
 }

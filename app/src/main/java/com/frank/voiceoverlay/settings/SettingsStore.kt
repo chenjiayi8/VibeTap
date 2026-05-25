@@ -15,7 +15,10 @@ import java.io.IOException
 
 class SettingsStore(
     private val dataStore: DataStore<Preferences>,
-    private val json: Json = Json,
+    private val json: Json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    },
 ) {
     suspend fun save(settings: AppSettings) {
         writeSettings(settings)

@@ -26,7 +26,15 @@ class SettingsStoreTest {
         val settingsStore = SettingsStore(store)
         val input = AppSettings(
             openAiApiKey = "sk-test",
-            presets = listOf(ShortcutPreset("ship-pr", "Ship-PR", "Good, please proceed to use \$ship-pr", 0)),
+            presets = listOf(
+                ShortcutPreset(
+                    id = "ship-pr",
+                    label = "Ship PR",
+                    text = "Please ship the PR after checks pass.",
+                    order = 0,
+                    isPinned = true,
+                ),
+            ),
         )
 
         settingsStore.save(input)
@@ -99,6 +107,30 @@ class SettingsStoreTest {
         val settingsStore = SettingsStore(store)
 
         assertEquals(ShortcutPreset.defaultPresets(), settingsStore.readOnce().presets)
+    }
+
+    @Test
+    fun readOnce_decodesLegacyPresetJsonWithoutIsPinned() = runTest {
+        val store = createStore(backgroundScope)
+        store.edit { preferences ->
+            preferences[stringPreferencesKey("shortcut_presets")] =
+                """[{"id":"legacy","label":"Legacy","text":"Legacy text","order":4}]"""
+        }
+
+        val settingsStore = SettingsStore(store)
+
+        assertEquals(
+            listOf(
+                ShortcutPreset(
+                    id = "legacy",
+                    label = "Legacy",
+                    text = "Legacy text",
+                    order = 4,
+                    isPinned = false,
+                ),
+            ),
+            settingsStore.readOnce().presets,
+        )
     }
 
     private fun createStore(scope: kotlinx.coroutines.CoroutineScope): DataStore<Preferences> =
