@@ -59,19 +59,27 @@ fun VibeTapImeRoot(
         }
 
         KeyboardLayoutMode.FLOATING -> FloatingSkillPanel(
-            skillBubbles = uiState.skillBubbles,
+            orbitExpanded = uiState.orbitExpanded,
+            innerRingBubbles = uiState.innerRingBubbles,
+            outerRingBubbles = uiState.outerRingBubbles,
+            canPageBackward = uiState.orbitExpanded && uiState.orbitPageIndex > 0,
+            canPageForward = uiState.orbitExpanded && uiState.orbitPageIndex < uiState.orbitPageCount - 1,
             statusMessage = uiState.statusMessage,
+            statusTone = uiState.statusTone,
             onMicTapped = {
                 coroutineScope.launch {
                     controller.onMicTapped()
                 }
             },
+            onMicDoubleTapped = controller::onOrbitExpandRequested,
             onDockTapped = controller::onLayoutToggle,
             onSkillBubbleTapped = { preset ->
                 coroutineScope.launch {
                     controller.onSkillBubbleTapped(preset)
                 }
             },
+            onPreviousPageTapped = controller::onPreviousOrbitPageRequested,
+            onNextPageTapped = controller::onNextOrbitPageRequested,
             modifier = Modifier.padding(12.dp),
         )
     }

@@ -1,130 +1,172 @@
 package com.frank.voiceoverlay.ime.ui
 
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.frank.voiceoverlay.ime.ImeStatusTone
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
-import kotlin.math.max
-import kotlin.math.roundToInt
+
+private val innerRingOffsets = listOf(
+    DpOffset(0.dp, (-92).dp),
+    DpOffset((-82).dp, (-24).dp),
+    DpOffset(82.dp, (-24).dp),
+)
+
+private val outerRingOffsets = listOf(
+    DpOffset((-122).dp, (-98).dp),
+    DpOffset(122.dp, (-98).dp),
+    DpOffset((-122).dp, 76.dp),
+    DpOffset(122.dp, 76.dp),
+)
+
+private val modeSwitchOffset = DpOffset((-122).dp, 0.dp)
+private val pagePreviousOffset = DpOffset((-122).dp, 132.dp)
+private val pageNextOffset = DpOffset(122.dp, 132.dp)
 
 @Composable
 fun FloatingSkillPanel(
-    skillBubbles: List<ShortcutPreset>,
+    orbitExpanded: Boolean,
+    innerRingBubbles: List<ShortcutPreset>,
+    outerRingBubbles: List<ShortcutPreset>,
+    canPageBackward: Boolean,
+    canPageForward: Boolean,
     statusMessage: String?,
+    statusTone: ImeStatusTone,
     onMicTapped: () -> Unit,
+    onMicDoubleTapped: () -> Unit,
     onDockTapped: () -> Unit,
     onSkillBubbleTapped: (ShortcutPreset) -> Unit,
+    onPreviousPageTapped: () -> Unit,
+    onNextPageTapped: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var offsetX by rememberSaveable { mutableIntStateOf(0) }
-    var offsetY by rememberSaveable { mutableIntStateOf(0) }
-    var panelWidthPx by rememberSaveable { mutableIntStateOf(0) }
-    var panelHeightPx by rememberSaveable { mutableIntStateOf(0) }
-
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .testTag("floating_skill_panel_viewport"),
+        contentAlignment = Alignment.Center,
     ) {
-        val viewportWidthPx = constraints.maxWidth
-        val viewportHeightPx = constraints.maxHeight
-        val maxOffsetX = max(0, viewportWidthPx - panelWidthPx)
-        val maxOffsetY = max(0, viewportHeightPx - panelHeightPx)
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (orbitExpanded) {
+                OrbitBubble(
+                    label = "Dock",
+                    tag = "bubble_mode_switch",
+                    offset = modeSwitchOffset,
+                    onClick = onDockTapped,
+                )
 
-        Surface(
-            modifier = Modifier
-                .offset { IntOffset(offsetX, offsetY) }
-                .onSizeChanged { size ->
-                    panelWidthPx = size.width
-                    panelHeightPx = size.height
-                    offsetX = offsetX.coerceIn(0, max(0, viewportWidthPx - size.width))
-                    offsetY = offsetY.coerceIn(0, max(0, viewportHeightPx - size.height))
-                }
-                .pointerInput(viewportWidthPx, viewportHeightPx, panelWidthPx, panelHeightPx) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        offsetX = (offsetX + dragAmount.x.roundToInt()).coerceIn(0, maxOffsetX)
-                        offsetY = (offsetY + dragAmount.y.roundToInt()).coerceIn(0, maxOffsetY)
-                    }
-                }
-                .testTag("floating_skill_panel"),
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 4.dp,
-            shadowElevation = 4.dp,
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(
-                        onClick = onMicTapped,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("floating_mic"),
-                    ) {
-                        Text(text = "Mic")
-                    }
-                    Button(
-                        onClick = onDockTapped,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("floating_dock"),
-                    ) {
-                        Text(text = "Dock")
-                    }
+                innerRingBubbles.take(innerRingOffsets.size).forEachIndexed { index, preset ->
+                    OrbitBubble(
+                        label = preset.label,
+                        tag = "bubble_skill_${preset.id}",
+                        offset = innerRingOffsets[index],
+                        onClick = { onSkillBubbleTapped(preset) },
+                    )
                 }
 
-                if (skillBubbles.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        skillBubbles.take(3).forEach { preset ->
-                            Button(
-                                onClick = { onSkillBubbleTapped(preset) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("floating_skill_${preset.id}"),
-                            ) {
-                                Text(text = preset.label)
-                            }
-                        }
-                    }
+                outerRingBubbles.take(outerRingOffsets.size).forEachIndexed { index, preset ->
+                    OrbitBubble(
+                        label = preset.label,
+                        tag = "bubble_skill_${preset.id}",
+                        offset = outerRingOffsets[index],
+                        onClick = { onSkillBubbleTapped(preset) },
+                    )
                 }
 
-                statusMessage?.let { message ->
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
+                if (canPageBackward) {
+                    OrbitBubble(
+                        label = "Prev",
+                        tag = "bubble_page_prev",
+                        offset = pagePreviousOffset,
+                        onClick = onPreviousPageTapped,
+                    )
+                }
+
+                if (canPageForward) {
+                    OrbitBubble(
+                        label = "Next",
+                        tag = "bubble_page_next",
+                        offset = pageNextOffset,
+                        onClick = onNextPageTapped,
                     )
                 }
             }
+
+            Box(
+                modifier = Modifier
+                    .size(88.dp)
+                    .testTag("bubble_primary_mic")
+                    .combinedClickable(
+                        role = Role.Button,
+                        onClick = onMicTapped,
+                        onDoubleClick = onMicDoubleTapped,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 6.dp,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Mic",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+
+            statusMessage?.let { message ->
+                Text(
+                    text = message,
+                    color = when (statusTone) {
+                        ImeStatusTone.Neutral -> MaterialTheme.colorScheme.onSurfaceVariant
+                        ImeStatusTone.Warning -> MaterialTheme.colorScheme.tertiary
+                        ImeStatusTone.Error -> MaterialTheme.colorScheme.error
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.offset(y = 184.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun OrbitBubble(
+    label: String,
+    tag: String,
+    offset: DpOffset,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .offset(x = offset.x, y = offset.y)
+            .testTag(tag),
+    ) {
+        Text(text = label, textAlign = TextAlign.Center)
     }
 }
