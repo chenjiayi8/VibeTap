@@ -4,7 +4,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import com.frank.voiceoverlay.shortcuts.ShortcutPreset
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -151,6 +155,146 @@ class SettingsViewModelTest {
 
         assertFalse(saved)
         assertEquals(listOf(initialPreset), settingsStore.readOnce().presets)
+    }
+
+    @Test
+    fun createPreset_appendsNewMacroAndPersistsIt() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+        val initialPresets = ShortcutPreset.defaultPresets().take(2)
+        settingsStore.save(AppSettings(presets = initialPresets))
+        val viewModelScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+        val viewModel = SettingsViewModel(
+            settingsStore = settingsStore,
+            hasMicrophonePermission = { true },
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
+            requestMicrophonePermission = {},
+            scope = viewModelScope,
+        )
+
+        advanceUntilIdle()
+        viewModel.createPreset()
+        runCurrent()
+        advanceUntilIdle()
+
+        val presets = settingsStore.readOnce().presets
+        viewModel.reloadSettings()
+        advanceUntilIdle()
+
+        assertEquals(presets, viewModel.uiState.value.presets)
+        assertEquals(3, presets.size)
+        assertEquals(initialPresets, presets.take(2))
+        val createdPreset = presets.last()
+        assertTrue(createdPreset.id.startsWith("macro-"))
+        assertEquals("New macro", createdPreset.label)
+        assertEquals("Describe what this macro should insert.", createdPreset.text)
+        assertFalse(createdPreset.isPinned)
+        assertEquals(2, createdPreset.order)
+        assertEquals(presets, settingsStore.readOnce().presets)
+    }
+
+    @Test
+    fun deletePreset_removesMacroAndPersistsDeletion() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+        val initialPresets = listOf(
+            ShortcutPreset(id = "alpha", label = "Alpha", text = "First", order = 0, isPinned = true),
+            ShortcutPreset(id = "beta", label = "Beta", text = "Second", order = 2, isPinned = false),
+            ShortcutPreset(id = "gamma", label = "Gamma", text = "Third", order = 5, isPinned = true),
+        )
+        settingsStore.save(AppSettings(presets = initialPresets))
+        val viewModelScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+        val viewModel = SettingsViewModel(
+            settingsStore = settingsStore,
+            hasMicrophonePermission = { true },
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
+            requestMicrophonePermission = {},
+            scope = viewModelScope,
+        )
+
+        advanceUntilIdle()
+        viewModel.deletePreset("beta")
+        runCurrent()
+        advanceUntilIdle()
+
+        val presets = settingsStore.readOnce().presets
+        viewModel.reloadSettings()
+        advanceUntilIdle()
+
+        assertEquals(presets, viewModel.uiState.value.presets)
+        assertEquals(listOf("alpha", "gamma"), presets.map { it.id })
+        assertEquals(listOf(0, 1), presets.map { it.order })
+        assertEquals(listOf(true, true), presets.map { it.isPinned })
+        assertEquals(presets, settingsStore.readOnce().presets)
+    }
+
+    @Test
+    fun movePresetUp_reordersMacrosAndNormalizesOrder() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+        val initialPresets = listOf(
+            ShortcutPreset(id = "third", label = "Third", text = "3", order = 2, isPinned = false),
+            ShortcutPreset(id = "first", label = "First", text = "1", order = 0, isPinned = true),
+            ShortcutPreset(id = "second", label = "Second", text = "2", order = 1, isPinned = false),
+        )
+        settingsStore.save(AppSettings(presets = initialPresets))
+        val viewModelScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+        val viewModel = SettingsViewModel(
+            settingsStore = settingsStore,
+            hasMicrophonePermission = { true },
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
+            requestMicrophonePermission = {},
+            scope = viewModelScope,
+        )
+
+        advanceUntilIdle()
+        viewModel.movePresetUp("third")
+        runCurrent()
+        advanceUntilIdle()
+
+        val presets = settingsStore.readOnce().presets
+        viewModel.reloadSettings()
+        advanceUntilIdle()
+
+        assertEquals(presets, viewModel.uiState.value.presets)
+        assertEquals(listOf("first", "third", "second"), presets.map { it.id })
+        assertEquals(listOf(0, 1, 2), presets.map { it.order })
+        assertEquals(listOf(true, false, false), presets.map { it.isPinned })
+        assertEquals(presets, settingsStore.readOnce().presets)
+    }
+
+    @Test
+    fun togglePresetPinned_flipsPinStateAndPersistsIt() = runTest {
+        val settingsStore = SettingsStore(createStore(backgroundScope))
+        val initialPresets = listOf(
+            ShortcutPreset(id = "alpha", label = "Alpha", text = "First", order = 0, isPinned = false),
+            ShortcutPreset(id = "beta", label = "Beta", text = "Second", order = 1, isPinned = true),
+        )
+        settingsStore.save(AppSettings(presets = initialPresets))
+        val viewModelScope = CoroutineScope(StandardTestDispatcher(testScheduler))
+        val viewModel = SettingsViewModel(
+            settingsStore = settingsStore,
+            hasMicrophonePermission = { true },
+            openKeyboardSettings = {},
+            showInputMethodPicker = {},
+            requestMicrophonePermission = {},
+            scope = viewModelScope,
+        )
+
+        advanceUntilIdle()
+        viewModel.togglePresetPinned("alpha")
+        runCurrent()
+        advanceUntilIdle()
+
+        val presets = settingsStore.readOnce().presets
+        viewModel.reloadSettings()
+        advanceUntilIdle()
+
+        assertEquals(presets, viewModel.uiState.value.presets)
+        assertEquals(listOf(true, true), presets.map { it.isPinned })
+        assertEquals(listOf("alpha", "beta"), presets.map { it.id })
+        assertEquals(listOf(0, 1), presets.map { it.order })
+        assertEquals(presets, settingsStore.readOnce().presets)
     }
 
     @Test

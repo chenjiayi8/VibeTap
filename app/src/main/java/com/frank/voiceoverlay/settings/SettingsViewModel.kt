@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class SettingsUiState(
     val openAiApiKey: String = "",
@@ -60,6 +61,32 @@ class SettingsViewModel(
         }
     }
 
+    fun createPreset() {
+        scope.launch {
+            createPresetAndReload()
+        }
+    }
+
+    fun deletePreset(presetId: String) {
+        scope.launch {
+            deletePresetAndReload(presetId)
+        }
+    }
+
+    fun movePresetUp(presetId: String) {
+        movePreset(presetId = presetId, direction = -1)
+    }
+
+    fun movePresetDown(presetId: String) {
+        movePreset(presetId = presetId, direction = 1)
+    }
+
+    fun togglePresetPinned(presetId: String) {
+        scope.launch {
+            togglePresetPinnedAndReload(presetId)
+        }
+    }
+
     fun refreshPermissionState() {
         scope.launch {
             reloadSettings()
@@ -94,6 +121,68 @@ class SettingsViewModel(
         return true
     }
 
+    private suspend fun createPresetAndReload() {
+        settingsStore.update { settings ->
+            val normalizedPresets = settings.presets.sortedByOrder().normalizedOrder()
+            settings.copy(
+                presets = normalizedPresets +
+                    ShortcutPreset(
+                        id = "macro-${UUID.randomUUID()}",
+                        label = "New macro",
+                        text = "Describe what this macro should insert.",
+                        order = normalizedPresets.size,
+                        isPinned = false,
+                    ),
+            )
+        }
+        reloadSettings()
+    }
+
+    private suspend fun deletePresetAndReload(presetId: String) {
+        settingsStore.update { settings ->
+            settings.copy(
+                presets = settings.presets
+                    .sortedByOrder()
+                    .filterNot { it.id == presetId }
+                    .normalizedOrder(),
+            )
+        }
+        reloadSettings()
+    }
+
+    private suspend fun movePresetAndReload(presetId: String, direction: Int) {
+        settingsStore.update { settings ->
+            settings.copy(
+                presets = settings.presets.movePreset(
+                    presetId = presetId,
+                    direction = direction,
+                ),
+            )
+        }
+        reloadSettings()
+    }
+
+    private suspend fun togglePresetPinnedAndReload(presetId: String) {
+        settingsStore.update { settings ->
+            settings.copy(
+                presets = settings.presets.map { preset ->
+                    if (preset.id == presetId) {
+                        preset.copy(isPinned = !preset.isPinned)
+                    } else {
+                        preset
+                    }
+                },
+            )
+        }
+        reloadSettings()
+    }
+
+    private fun movePreset(presetId: String, direction: Int) {
+        scope.launch {
+            movePresetAndReload(presetId = presetId, direction = direction)
+        }
+    }
+
     private fun AppSettings.toUiState(
         microphonePermissionGranted: Boolean,
     ) = SettingsUiState(
@@ -114,3 +203,26 @@ internal fun List<ShortcutPreset>.updatedPreset(
         preset
     }
 }
+
+internal fun List<ShortcutPreset>.movePreset(presetId: String, direction: Int): List<ShortcutPreset> {
+    val orderedPresets = sortedByOrder()
+    val currentIndex = orderedPresets.indexOfFirst { it.id == presetId }
+    if (currentIndex == -1) {
+        return orderedPresets.normalizedOrder()
+    }
+
+    val targetIndex = (currentIndex + direction).coerceIn(0, orderedPresets.lastIndex)
+    if (targetIndex == currentIndex) {
+        return orderedPresets.normalizedOrder()
+    }
+
+    val mutablePresets = orderedPresets.toMutableList()
+    val preset = mutablePresets.removeAt(currentIndex)
+    mutablePresets.add(targetIndex, preset)
+    return mutablePresets.normalizedOrder()
+}
+
+private fun List<ShortcutPreset>.sortedByOrder(): List<ShortcutPreset> = sortedBy { it.order }
+
+private fun List<ShortcutPreset>.normalizedOrder(): List<ShortcutPreset> =
+    mapIndexed { index, preset -> preset.copy(order = index) }
