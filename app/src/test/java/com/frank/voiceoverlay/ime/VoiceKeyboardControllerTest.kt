@@ -14,12 +14,15 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class VoiceKeyboardControllerTest {
     @Test
-    fun bind_loadsTopThreeShortcutsSortedByOrder_andMirrorsRecordingState() = runTest {
+    fun bind_loadsShortcutsSortedByOrder_andMirrorsRecordingState() = runTest {
         val presets = listOf(
             ShortcutPreset(id = "four", label = "Four", text = "4", order = 4),
             ShortcutPreset(id = "two", label = "Two", text = "2", order = 2),
@@ -37,7 +40,11 @@ class VoiceKeyboardControllerTest {
 
         assertEquals(KeyboardLayoutMode.DOCKED, controller.uiState.value.layoutMode)
         assertEquals(RecordingState.LISTENING, controller.uiState.value.recordingState)
-        assertEquals(listOf("Zero", "One", "Two"), controller.uiState.value.skillBubbles.map { it.label })
+        assertEquals(listOf("Zero", "One", "Two", "Four"), controller.uiState.value.skillBubbles.map { it.label })
+        assertEquals(1, controller.uiState.value.orbitPageCount)
+        assertFalse(controller.uiState.value.orbitExpanded)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.innerRingBubbles)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.outerRingBubbles)
         assertEquals(null, controller.uiState.value.statusMessage)
         bindingScope.cancel()
     }
@@ -109,6 +116,104 @@ class VoiceKeyboardControllerTest {
         assertEquals(2, environment.shortcutsProviderCalls)
         assertEquals(listOf("Fresh"), controller.uiState.value.skillBubbles.map { it.label })
         assertEquals(null, controller.uiState.value.statusMessage)
+        bindingScope.cancel()
+    }
+
+    @Test
+    fun onOrbitExpandRequested_exposesFirstOrbitPage() = runTest {
+        val presets = listOf(
+            ShortcutPreset(id = "p2", label = "Pinned 2", text = "Pinned 2", order = 2, isPinned = true),
+            ShortcutPreset(id = "u3", label = "Outer 3", text = "Outer 3", order = 6),
+            ShortcutPreset(id = "p1", label = "Pinned 1", text = "Pinned 1", order = 1, isPinned = true),
+            ShortcutPreset(id = "u1", label = "Outer 1", text = "Outer 1", order = 4),
+            ShortcutPreset(id = "u4", label = "Outer 4", text = "Outer 4", order = 7),
+            ShortcutPreset(id = "u2", label = "Outer 2", text = "Outer 2", order = 5),
+        )
+        val environment = FakeImeEnvironment(
+            initialRecordingState = RecordingState.PROCESSING,
+            shortcuts = presets,
+        )
+        val bindingScope = createBindingScope(testScheduler)
+        val controller = environment.createController(bindingScope)
+        advanceUntilIdle()
+
+        controller.onMicTapped()
+        assertEquals("Still processing the previous recording.", controller.uiState.value.statusMessage)
+        assertEquals(ImeStatusTone.Warning, controller.uiState.value.statusTone)
+
+        controller.onOrbitExpandRequested()
+
+        assertNull(controller.uiState.value.statusMessage)
+        assertEquals(ImeStatusTone.Neutral, controller.uiState.value.statusTone)
+        assertTrue(controller.uiState.value.orbitExpanded)
+        assertEquals(0, controller.uiState.value.orbitPageIndex)
+        assertEquals(1, controller.uiState.value.orbitPageCount)
+        assertEquals(listOf("Pinned 1", "Pinned 2"), controller.uiState.value.innerRingBubbles.map { it.label })
+        assertEquals(
+            listOf("Outer 1", "Outer 2", "Outer 3", "Outer 4"),
+            controller.uiState.value.outerRingBubbles.map { it.label },
+        )
+        bindingScope.cancel()
+    }
+
+    @Test
+    fun onNextOrbitPageRequested_movesToNextPageWhenAvailable() = runTest {
+        val presets = listOf(
+            ShortcutPreset(id = "p1", label = "Pinned 1", text = "Pinned 1", order = 0, isPinned = true),
+            ShortcutPreset(id = "u1", label = "Outer 1", text = "Outer 1", order = 1),
+            ShortcutPreset(id = "u2", label = "Outer 2", text = "Outer 2", order = 2),
+            ShortcutPreset(id = "u3", label = "Outer 3", text = "Outer 3", order = 3),
+            ShortcutPreset(id = "u4", label = "Outer 4", text = "Outer 4", order = 4),
+            ShortcutPreset(id = "u5", label = "Outer 5", text = "Outer 5", order = 5),
+        )
+        val environment = FakeImeEnvironment(shortcuts = presets)
+        val bindingScope = createBindingScope(testScheduler)
+        val controller = environment.createController(bindingScope)
+        advanceUntilIdle()
+
+        controller.onOrbitExpandRequested()
+        controller.onNextOrbitPageRequested()
+
+        assertTrue(controller.uiState.value.orbitExpanded)
+        assertEquals(1, controller.uiState.value.orbitPageIndex)
+        assertEquals(2, controller.uiState.value.orbitPageCount)
+        assertEquals(listOf("Pinned 1"), controller.uiState.value.innerRingBubbles.map { it.label })
+        assertEquals(listOf("Outer 5"), controller.uiState.value.outerRingBubbles.map { it.label })
+
+        controller.onNextOrbitPageRequested()
+        assertEquals(1, controller.uiState.value.orbitPageIndex)
+        assertEquals(listOf("Outer 5"), controller.uiState.value.outerRingBubbles.map { it.label })
+        bindingScope.cancel()
+    }
+
+    @Test
+    fun onPreviousOrbitPageRequested_isNoOpOnFirstPage_andPreservesStatus() = runTest {
+        val presets = listOf(
+            ShortcutPreset(id = "p1", label = "Pinned 1", text = "Pinned 1", order = 0, isPinned = true),
+            ShortcutPreset(id = "u1", label = "Outer 1", text = "Outer 1", order = 1),
+            ShortcutPreset(id = "u2", label = "Outer 2", text = "Outer 2", order = 2),
+            ShortcutPreset(id = "u3", label = "Outer 3", text = "Outer 3", order = 3),
+            ShortcutPreset(id = "u4", label = "Outer 4", text = "Outer 4", order = 4),
+            ShortcutPreset(id = "u5", label = "Outer 5", text = "Outer 5", order = 5),
+        )
+        val environment = FakeImeEnvironment(shortcuts = presets)
+        val bindingScope = createBindingScope(testScheduler)
+        val controller = environment.createController(bindingScope)
+        advanceUntilIdle()
+
+        controller.onOrbitExpandRequested()
+        environment.commitPhraseResult = false
+        controller.onSkillBubbleTapped(ShortcutPreset(id = "missing", label = "Missing", text = "Missing", order = 99))
+        assertEquals("No active text field for phrase insertion.", controller.uiState.value.statusMessage)
+        assertEquals(ImeStatusTone.Neutral, controller.uiState.value.statusTone)
+
+        controller.onPreviousOrbitPageRequested()
+
+        assertTrue(controller.uiState.value.orbitExpanded)
+        assertEquals(0, controller.uiState.value.orbitPageIndex)
+        assertEquals(listOf("Outer 1", "Outer 2", "Outer 3", "Outer 4"), controller.uiState.value.outerRingBubbles.map { it.label })
+        assertEquals("No active text field for phrase insertion.", controller.uiState.value.statusMessage)
+        assertEquals(ImeStatusTone.Neutral, controller.uiState.value.statusTone)
         bindingScope.cancel()
     }
 
@@ -233,6 +338,39 @@ class VoiceKeyboardControllerTest {
             "No active text field for phrase insertion.",
             controller.uiState.value.statusMessage,
         )
+        assertEquals(ImeStatusTone.Neutral, controller.uiState.value.statusTone)
+    }
+
+    @Test
+    fun onSkillBubbleTapped_commitsPhraseAndCollapsesExpandedOrbit() = runTest {
+        val presets = listOf(
+            ShortcutPreset(id = "p1", label = "Pinned 1", text = "Pinned 1", order = 0, isPinned = true),
+            ShortcutPreset(id = "u1", label = "Outer 1", text = "Outer 1", order = 1),
+            ShortcutPreset(id = "u2", label = "Outer 2", text = "Outer 2", order = 2),
+            ShortcutPreset(id = "u3", label = "Outer 3", text = "Outer 3", order = 3),
+            ShortcutPreset(id = "u4", label = "Outer 4", text = "Outer 4", order = 4),
+            ShortcutPreset(id = "u5", label = "Outer 5", text = "Outer 5", order = 5),
+        )
+        val selectedPreset = presets.last()
+        val environment = FakeImeEnvironment(shortcuts = presets)
+        val bindingScope = createBindingScope(testScheduler)
+        val controller = environment.createController(bindingScope)
+        advanceUntilIdle()
+
+        controller.onOrbitExpandRequested()
+        controller.onNextOrbitPageRequested()
+        assertEquals(listOf("Outer 5"), controller.uiState.value.outerRingBubbles.map { it.label })
+
+        controller.onSkillBubbleTapped(selectedPreset)
+
+        assertEquals(listOf("Outer 5"), environment.committedPhrases)
+        assertFalse(controller.uiState.value.orbitExpanded)
+        assertEquals(0, controller.uiState.value.orbitPageIndex)
+        assertEquals(2, controller.uiState.value.orbitPageCount)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.innerRingBubbles)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.outerRingBubbles)
+        assertEquals(null, controller.uiState.value.statusMessage)
+        bindingScope.cancel()
     }
 
     @Test
@@ -261,9 +399,9 @@ class VoiceKeyboardControllerTest {
         assertEquals(cancellation, thrown)
         assertEquals(null, cancellationController.uiState.value.statusMessage)
     }
+
     private fun createBindingScope(testScheduler: kotlinx.coroutines.test.TestCoroutineScheduler): CoroutineScope =
         CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
-
 }
 
 private suspend fun captureCancellation(block: suspend () -> Unit): CancellationException {
