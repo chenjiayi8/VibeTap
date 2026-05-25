@@ -25,6 +25,7 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithTag(SettingsScreenTestTags.ApiKeySection).assertIsDisplayed()
         composeRule.onNodeWithTag(SettingsScreenTestTags.ApiKeyField).assertIsDisplayed()
         composeRule.onNodeWithTag(SettingsScreenTestTags.ShortcutPresetsSection).assertIsDisplayed()
+        composeRule.onNodeWithTag(SettingsScreenTestTags.AddMacroButton).assertIsDisplayed()
     }
 
     @Test

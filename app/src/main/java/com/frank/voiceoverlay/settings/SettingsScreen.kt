@@ -16,6 +16,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,9 +35,14 @@ object SettingsScreenTestTags {
     const val ApiKeySection = "settings_api_key_section"
     const val ApiKeyField = "settings_api_key_field"
     const val ShortcutPresetsSection = "settings_shortcut_presets_section"
+    const val AddMacroButton = "settings_add_macro_button"
     const val PresetLabelFieldPrefix = "settings_preset_label_field_"
     const val PresetTextFieldPrefix = "settings_preset_text_field_"
     const val PresetSaveButtonPrefix = "settings_preset_save_button_"
+    const val PresetDeleteButtonPrefix = "settings_preset_delete_button_"
+    const val PresetPinButtonPrefix = "settings_preset_pin_button_"
+    const val PresetMoveUpButtonPrefix = "settings_preset_move_up_button_"
+    const val PresetMoveDownButtonPrefix = "settings_preset_move_down_button_"
 }
 
 @Composable
@@ -44,6 +50,11 @@ fun SettingsScreen(
     uiState: SettingsUiState,
     onApiKeyChanged: (String) -> Unit,
     onPresetChanged: (presetId: String, label: String, text: String) -> Unit,
+    onCreatePreset: () -> Unit,
+    onDeletePreset: (String) -> Unit,
+    onMovePresetUp: (String) -> Unit,
+    onMovePresetDown: (String) -> Unit,
+    onTogglePresetPinned: (String) -> Unit,
     onOpenKeyboardSettings: () -> Unit,
     onShowInputMethodPicker: () -> Unit,
     onRequestMicrophonePermission: () -> Unit,
@@ -141,11 +152,33 @@ fun SettingsScreen(
                 title = "Saved phrase skills",
                 modifier = Modifier.testTag(SettingsScreenTestTags.ShortcutPresetsSection),
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Saved presets",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Button(
+                        onClick = onCreatePreset,
+                        modifier = Modifier.testTag(SettingsScreenTestTags.AddMacroButton),
+                    ) {
+                        Text("Add macro")
+                    }
+                }
                 uiState.presets.forEach { preset ->
-                    EditablePresetCard(
+                    key(preset.id) {
+                        EditablePresetCard(
                         preset = preset,
                         onSave = { label, text -> onPresetChanged(preset.id, label, text) },
-                    )
+                        onDelete = { onDeletePreset(preset.id) },
+                        onMoveUp = { onMovePresetUp(preset.id) },
+                        onMoveDown = { onMovePresetDown(preset.id) },
+                        onTogglePinned = { onTogglePresetPinned(preset.id) },
+                        )
+                    }
                 }
             }
         }
@@ -156,6 +189,10 @@ fun SettingsScreen(
 private fun EditablePresetCard(
     preset: ShortcutPreset,
     onSave: (label: String, text: String) -> Unit,
+    onDelete: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onTogglePinned: () -> Unit,
 ) {
     var label by remember(preset.id, preset.label) { mutableStateOf(preset.label) }
     var text by remember(preset.id, preset.text) { mutableStateOf(preset.text) }
@@ -201,20 +238,63 @@ private fun EditablePresetCard(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        Button(
-            onClick = {
-                if (label.trim().isBlank() || text.trim().isBlank()) {
-                    validationMessage = "Preset label and text cannot be blank."
-                } else {
-                    validationMessage = null
-                    onSave(label.trim(), text.trim())
-                }
-            },
-            modifier = Modifier
-                .testTag("${SettingsScreenTestTags.PresetSaveButtonPrefix}${preset.id}")
-                .semantics { contentDescription = "Save preset ${preset.id}" },
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Save preset")
+            Button(
+                onClick = onMoveUp,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("${SettingsScreenTestTags.PresetMoveUpButtonPrefix}${preset.id}"),
+            ) {
+                Text("Up")
+            }
+            Button(
+                onClick = onMoveDown,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("${SettingsScreenTestTags.PresetMoveDownButtonPrefix}${preset.id}"),
+            ) {
+                Text("Down")
+            }
+            Button(
+                onClick = onTogglePinned,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("${SettingsScreenTestTags.PresetPinButtonPrefix}${preset.id}"),
+            ) {
+                Text(if (preset.isPinned) "Unpin" else "Pin")
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(
+                onClick = onDelete,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("${SettingsScreenTestTags.PresetDeleteButtonPrefix}${preset.id}"),
+            ) {
+                Text("Delete")
+            }
+            Button(
+                onClick = {
+                    if (label.trim().isBlank() || text.trim().isBlank()) {
+                        validationMessage = "Preset label and text cannot be blank."
+                    } else {
+                        validationMessage = null
+                        onSave(label.trim(), text.trim())
+                    }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("${SettingsScreenTestTags.PresetSaveButtonPrefix}${preset.id}")
+                    .semantics { contentDescription = "Save preset ${preset.id}" },
+            ) {
+                Text("Save preset")
+            }
         }
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
     }
