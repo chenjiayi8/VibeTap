@@ -51,6 +51,7 @@ The keyboard runtime is implemented with these interaction rules:
 
 - **Docked keyboard** keeps dictation controls alongside normal typing actions.
 - **Floating compact panel** gives a smaller voice-first surface when the full keyboard is not needed.
+- **Bubble mode** rests as a single central mic orb; a single tap starts dictation, a double tap expands a macro constellation, tapping a macro inserts its text and collapses the orbit, and extra macros paginate across additional pages.
 - **Saved phrase skills** are editable from the settings screen and are committed through the active `InputConnection`.
 
 ## Operator setup / verification flow
