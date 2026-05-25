@@ -137,6 +137,11 @@ class VoiceKeyboardController(
                 },
                 statusMessage = null,
                 statusTone = ImeStatusTone.Neutral,
+                orbitExpanded = false,
+                orbitPageIndex = 0,
+                orbitPageCount = orbitPages.size.coerceAtLeast(1),
+                innerRingBubbles = emptyList(),
+                outerRingBubbles = emptyList(),
             )
         }
     }

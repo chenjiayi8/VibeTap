@@ -236,6 +236,46 @@ class VoiceKeyboardControllerTest {
     }
 
     @Test
+    fun onLayoutToggle_roundTripFromFloating_resetsExpandedOrbitState() = runTest {
+        val presets = listOf(
+            ShortcutPreset(id = "p1", label = "Pinned 1", text = "Pinned 1", order = 0, isPinned = true),
+            ShortcutPreset(id = "u1", label = "Outer 1", text = "Outer 1", order = 1),
+            ShortcutPreset(id = "u2", label = "Outer 2", text = "Outer 2", order = 2),
+            ShortcutPreset(id = "u3", label = "Outer 3", text = "Outer 3", order = 3),
+            ShortcutPreset(id = "u4", label = "Outer 4", text = "Outer 4", order = 4),
+            ShortcutPreset(id = "u5", label = "Outer 5", text = "Outer 5", order = 5),
+        )
+        val bindingScope = createBindingScope(testScheduler)
+        val controller = FakeImeEnvironment(shortcuts = presets).createController(bindingScope)
+        advanceUntilIdle()
+
+        controller.onLayoutToggle()
+        assertEquals(KeyboardLayoutMode.FLOATING, controller.uiState.value.layoutMode)
+
+        controller.onOrbitExpandRequested()
+        controller.onNextOrbitPageRequested()
+        assertTrue(controller.uiState.value.orbitExpanded)
+        assertEquals(1, controller.uiState.value.orbitPageIndex)
+        assertEquals(listOf("Outer 5"), controller.uiState.value.outerRingBubbles.map { it.label })
+
+        controller.onLayoutToggle()
+        assertEquals(KeyboardLayoutMode.DOCKED, controller.uiState.value.layoutMode)
+        assertFalse(controller.uiState.value.orbitExpanded)
+        assertEquals(0, controller.uiState.value.orbitPageIndex)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.innerRingBubbles)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.outerRingBubbles)
+
+        controller.onLayoutToggle()
+        assertEquals(KeyboardLayoutMode.FLOATING, controller.uiState.value.layoutMode)
+        assertFalse(controller.uiState.value.orbitExpanded)
+        assertEquals(0, controller.uiState.value.orbitPageIndex)
+        assertEquals(2, controller.uiState.value.orbitPageCount)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.innerRingBubbles)
+        assertEquals(emptyList<ShortcutPreset>(), controller.uiState.value.outerRingBubbles)
+        bindingScope.cancel()
+    }
+
+    @Test
     fun onMicTapped_handlesStateTransitionsAndFailures() = runTest {
         val environment = FakeImeEnvironment()
         val controller = environment.createController(backgroundScope)
