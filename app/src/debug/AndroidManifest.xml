@@ -4,5 +4,9 @@
     <activity
       android:name="com.frank.voiceoverlay.testing.TestComposeActivity"
       android:exported="false" />
+    <activity
+      android:name="com.frank.voiceoverlay.testing.OrbitProofActivity"
+      android:exported="true"
+      android:label="VibeTap Orbit Proof" />
   </application>
 </manifest>
